@@ -346,9 +346,11 @@ export const Monikhao = async (ctx) => {
   debugLog(`Plugin active (root: ${PLUGIN_ROOT}, dir: ${ctx.directory || 'unknown'})`)
 
   const workerReady = await ensureWorker()
-  if (workerReady) {
-    debugLog(`Worker ready, waiting for session.created event to register session`)
-  } else {
+  if (workerReady && !_sessionStartSent) {
+    _sessionStartSent = true
+    await postEvent(makeEvent('session_start'))
+    debugLog(`Session started on activation: ${getSessionId()}`)
+  } else if (!workerReady) {
     debugLog('Worker not available — events will queue when it comes online')
   }
 
@@ -398,15 +400,18 @@ export const Monikhao = async (ctx) => {
       const type = event.type
 
       if (type === 'session.created') {
-        if (_sessionStartSent) {
-          debugLog(`Skipping duplicate session.created (already sent for ${sessionId})`)
-          return
+        const newId = event.properties?.id
+        if (newId && newId !== sessionId) {
+          sessionId = newId
+          debugLog(`Session ID updated to: ${sessionId}`)
         }
-        sessionId = event.properties?.id || getSessionId()
-        _sessionStartSent = true
-        await ensureWorker()
-        await postEvent(makeEvent('session_start'))
-        debugLog(`Session started: ${sessionId}`)
+        // If session_start wasn't sent during activation (worker was down), send it now
+        if (!_sessionStartSent) {
+          _sessionStartSent = true
+          await ensureWorker()
+          await postEvent(makeEvent('session_start'))
+          debugLog(`Session started (deferred): ${sessionId}`)
+        }
       }
 
       if (type === 'session.deleted' || type === 'session.error') {
