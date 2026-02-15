@@ -41,13 +41,13 @@
     "autoFocus": true,
     "asciiRain": true,
     "asciiRainDensity": 1,
-    "bgType": "hyperbolic",
+    "bgType": "moire",
     "waveSymbols": "blocks",
     "bgOpacity": 100,
     "wireThickness": 2,
     "wireDistance": 1.8,
     "theme": "custom",
-    "customColor": "#165200",
+    "customColor": "#520000",
     "showFps": true
   },
   "features": {

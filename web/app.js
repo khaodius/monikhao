@@ -2144,6 +2144,7 @@ function spawnArcParticle(sourceId, targetId, colorHex) {
 }
 
 let _particleCollisionFrame = 0;
+let _proxLineFrame = 0;
 function updateParticles(dt) {
   const speed = appState.config?.animation?.speed || 1;
   const dtScaled = dt * speed;
@@ -2284,8 +2285,8 @@ function updateParticles(dt) {
     p.mesh.scale.setScalar(scale);
   }
 
-  // Proximity lines between nearby particles
-  updateProximityLines();
+  // Proximity lines between nearby particles — O(n²) so throttle to every 2nd frame
+  if (++_proxLineFrame % 2 === 0) updateProximityLines();
 }
 
 let proxLineIdx = 0;
@@ -2660,17 +2661,21 @@ function updateAttention(dt) {
 
 // ─── Orb Collision Physics ──────────────────────────────────────────────────
 const _orbArr = []; // reused every frame
+let _orbCollisionFrame = 0;
 function updateOrbCollisions(dt) {
   _orbArr.length = 0;
   for (const v of agentMeshes.values()) _orbArr.push(v);
   const len = _orbArr.length;
   if (len < 2) return;
 
+  // O(n²) collision detection — run every 2nd frame, still apply velocity/restore every frame
+  const runCollisions = (++_orbCollisionFrame % 2 === 0);
+
   const BOUNCE = 10.0;
   const DAMPEN = 0.88;
   const RESTORE = 1.8;
 
-  for (let i = 0; i < len; i++) {
+  if (runCollisions) for (let i = 0; i < len; i++) {
     const a = _orbArr[i];
     const ap = a.group.position;
 
@@ -2849,8 +2854,11 @@ function animate() {
 
   const now = performance.now();
   const maxFps = appState.config?.animation?.maxFps ?? 0;
-  if (maxFps > 0) {
-    const interval = 1000 / maxFps;
+  const hasAgents = agentMeshes.size > 0;
+  // Idle FPS cap: 30fps when no agents, saves CPU when dashboard is waiting
+  const effectiveFps = hasAgents ? maxFps : Math.max(maxFps, 30);
+  if (effectiveFps > 0) {
+    const interval = 1000 / effectiveFps;
     if (now - lastFrameTime < interval) return;
     // Snap to ideal cadence to prevent drift — actual FPS stays accurate to slider
     lastFrameTime = now - ((now - lastFrameTime) % interval);
@@ -2867,13 +2875,16 @@ function animate() {
 
   const time = clock.getElapsedTime();
 
-  updateSpawnAnimations();
-  updateContextAnimations(time, dt, speed);
-  updateAttention(dt);
-  updateOrbCollisions(dt * speed);
-  updateConnectionLines(time, dt);
-  updateParticles(dt);
-  updateFileNodes(dt);
+  // Skip expensive agent operations when no agents exist
+  if (hasAgents) {
+    updateSpawnAnimations();
+    updateContextAnimations(time, dt, speed);
+    updateAttention(dt);
+    updateOrbCollisions(dt * speed);
+    updateConnectionLines(time, dt);
+    updateParticles(dt);
+    updateFileNodes(dt);
+  }
 
   // GPU background: two-pass render
   updateBackground();
@@ -2883,7 +2894,7 @@ function animate() {
     renderer.render(bgScene, bgCamera);
   }
   renderer.render(scene, camera);
-  css2DRenderer.render(scene, camera);
+  if (hasAgents) css2DRenderer.render(scene, camera); // skip CSS2D pass when no labels
 
   // FPS counter
   fpsFrames++;
@@ -3333,6 +3344,18 @@ function summarizeInputForUI(toolName, input) {
 }
 
 // ─── State Sync ────────────────────────────────────────────────────────────────
+// Debounce scene sync: coalesce rapid WebSocket messages into one rAF pass
+// Prevents 129ms+ long tasks from back-to-back state_update messages
+let _syncPending = false;
+function scheduleSyncScene() {
+  if (_syncPending) return;
+  _syncPending = true;
+  requestAnimationFrame(() => {
+    _syncPending = false;
+    syncSceneWithState();
+  });
+}
+
 function syncSceneWithState() {
   const currentAgentIds = new Set(appState.agents.map(a => a.id));
 
@@ -3689,12 +3712,12 @@ function connectWebSocket() {
       case 'event':
         appState = msg.state;
         handleEvent(msg.event);
-        syncSceneWithState();
+        scheduleSyncScene(); // debounced — coalesces rapid tool bursts
         break;
 
       case 'state_update':
         appState = msg.state;
-        syncSceneWithState();
+        scheduleSyncScene(); // debounced
         break;
 
       case 'config_update':

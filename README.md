@@ -1,6 +1,6 @@
 # Monikhao
 
-This serves quite literally no use, but, this is a real-time 3D dashboard that visualizes AI coding agent sessions using Three.js. Works with both **Claude Code** and **OpenCode** simultaneously on the same dashboard. Watch your agents work in a living, breathing environment -- orbs pulse with heartbeat rhythms on tool execution, orbital particles drift and connect with proximity lines, subagents spawn with particle bursts and dissolve when complete, and connection energy flows between parent and child agents.
+This quite literally serves no use, but, this is a real-time 3D dashboard that visualizes AI coding agent sessions using Three.js. Works with both **Claude Code** and **OpenCode** simultaneously on the same dashboard. Watch your agents work in a living, breathing environment -- orbs pulse with heartbeat rhythms on tool execution, orbital particles drift and connect with proximity lines, subagents spawn with particle bursts and dissolve when complete, and connection energy flows between parent and child agents.
 
 ![Dashboard](https://img.shields.io/badge/dashboard-Three.js-blue) ![Node](https://img.shields.io/badge/node-%3E%3D18-green) ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
@@ -104,10 +104,7 @@ This serves quite literally no use, but, this is a real-time 3D dashboard that v
 
    This installs the Node.js dependencies (`express`, `ws`) inside the `Monikhao/` folder.
 
-3. Restart OpenCode. The worker auto-starts and the dashboard is live at `http://127.0.0.1:37800`. If it does not, run
- ```
-   /kmoni-on
- ```
+3. Restart OpenCode. The worker auto-starts and the dashboard is live at `http://127.0.0.1:37800`.
 
 **How the bootstrap works:**
 
