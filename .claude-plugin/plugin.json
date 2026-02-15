@@ -1,0 +1,10 @@
+{
+  "name": "monikhao",
+  "version": "1.0.0",
+  "description": "Monikhao - Real-time 3D dashboard visualizing AI coding agent sessions with Three.js",
+  "author": {
+    "name": "khaos"
+  },
+  "license": "MIT",
+  "keywords": ["monitoring", "3d", "visualization", "agents", "dashboard", "monikhao"]
+}

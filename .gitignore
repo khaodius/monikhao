@@ -1,0 +1,20 @@
+node_modules/
+package-lock.json
+*.log
+.DS_Store
+Thumbs.db
+
+# Claude Code internal instructions
+CLAUDE.md
+**/CLAUDE.md
+
+# Windows artifacts
+nul
+
+# Runtime data
+.monikhao/
+.agent-monitor/
+
+# Dev-only scripts (contain local paths)
+scripts/sync-plugins.sh
+scripts/*.tmp

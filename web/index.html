@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monikhao</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&family=Noto+Sans+JP:wght@400&family=Noto+Sans+Runic&display=swap">
+</head>
+<body>
+  <!-- ASCII Rain Background -->
+  <canvas id="ascii-rain"></canvas>
+
+  <!-- 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Bar -->
+  <div id="top-bar">
+    <div class="title">
+      MONIKHAO
+      <span id="session-info">Waiting for session...</span>
+    </div>
+    <div id="stats-bar">
+      <div class="stat">
+        <div class="status-dot disconnected" id="status-dot"></div>
+        <span class="stat-value" id="status-label">Disconnected</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Agents</span>
+        <span class="stat-value" id="stat-agents">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Active</span>
+        <span class="stat-value stat-active" id="stat-active">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tool Calls</span>
+        <span class="stat-value" id="stat-tools">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tools/min</span>
+        <span class="stat-value" id="stat-rate">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Errors</span>
+        <span class="stat-value stat-errors" id="stat-errors">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Files</span>
+        <span class="stat-value" id="stat-files">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Changes</span>
+        <span class="stat-value" id="stat-changes"><span class="line-add">+0</span> <span class="line-del">-0</span></span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">~Tokens</span>
+        <span class="stat-value" id="stat-tokens">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">~Cost</span>
+        <span class="stat-value stat-cost" id="stat-cost">$0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Turns</span>
+        <span class="stat-value" id="stat-turns">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Uptime</span>
+        <span class="stat-value" id="stat-uptime">0s</span>
+      </div>
+      <div class="stat" id="fps-stat">
+        <span class="stat-label">FPS</span>
+        <span class="stat-value" id="fps-counter">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection Banner -->
+  <div id="connection-banner">Reconnecting to Monikhao...</div>
+
+  <!-- Side Panel -->
+  <button id="panel-toggle" onclick="togglePanel()">&lsaquo;</button>
+  <div id="side-panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" data-tab="agents" onclick="switchTab('agents')">Agents</div>
+      <div class="panel-tab" data-tab="config" onclick="switchTab('config')">Config</div>
+    </div>
+
+    <!-- Agents Tab (includes inline events per agent) -->
+    <div class="panel-content" id="tab-agents"></div>
+
+    <!-- Config Tab -->
+    <div class="panel-content" id="tab-config" style="display:none">
+      <details class="config-group" open>
+        <summary class="config-group-title">Theme</summary>
+        <div class="config-group-body">
+          <div class="config-row">
+            <label>Color Theme</label>
+            <select id="cfg-theme" onchange="handleThemeSelect(this.value)">
+              <option value="purple">Purple</option>
+              <option value="cyan">Cyan</option>
+              <option value="emerald">Emerald</option>
+              <option value="rose">Rose</option>
+              <option value="amber">Amber</option>
+              <option value="crimson">Crimson</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="config-row" id="custom-color-row" style="display:none">
+            <label>Accent Color</label>
+            <input type="color" id="cfg-custom-color" value="#b050ff"
+              oninput="applyCustomTheme(this.value); updateConfig('display.theme', 'custom'); updateConfig('display.customColor', this.value)"
+              style="width:36px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;padding:2px">
+          </div>
+        </div>
+      </details>
+      <details class="config-group">
+        <summary class="config-group-title">Animation</summary>
+        <div class="config-group-body">
+          <div class="config-row">
+            <label>Max FPS</label>
+            <input type="range" min="0" max="144" step="1" value="0" id="cfg-max-fps"
+              oninput="document.getElementById('max-fps-val').textContent=this.value==0?'Off':this.value; updateConfig('animation.maxFps', parseInt(this.value))">
+            <span class="range-val" id="max-fps-val">Off</span>
+          </div>
+          <div class="config-row">
+            <label>Speed</label>
+            <input type="range" min="0.1" max="3" step="0.1" value="1" id="cfg-speed"
+              oninput="updateConfig('animation.speed', parseFloat(this.value))">
+          </div>
+          <div class="config-row">
+            <label>Auto-Rotate</label>
+            <input type="checkbox" id="cfg-autorotate"
+              onchange="updateConfig('animation.autoRotate', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Orbit Speed</label>
+            <input type="range" min="0.0005" max="0.01" step="0.0005" value="0.002" id="cfg-orbit"
+              oninput="updateConfig('animation.orbitSpeed', parseFloat(this.value))">
+          </div>
+          <div class="config-row">
+            <label>Particle Lifetime</label>
+            <input type="range" min="5000" max="120000" step="5000" value="60000" id="cfg-particles"
+              oninput="updateConfig('animation.particleLifetime', parseInt(this.value))">
+          </div>
+        </div>
+      </details>
+      <details class="config-group">
+        <summary class="config-group-title">Display</summary>
+        <div class="config-group-body">
+          <div class="config-row">
+            <label>Show FPS</label>
+            <input type="checkbox" checked id="cfg-show-fps"
+              onchange="updateConfig('display.showFps', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Agent Labels</label>
+            <input type="checkbox" checked id="cfg-labels"
+              onchange="updateConfig('display.showLabels', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Auto-Focus</label>
+            <input type="checkbox" checked id="cfg-autofocus"
+              onchange="updateConfig('display.autoFocus', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Max File Nodes</label>
+            <input type="range" min="10" max="100" step="10" value="50" id="cfg-maxfiles"
+              oninput="updateConfig('maxFileNodes', parseInt(this.value))">
+          </div>
+          <div class="config-row">
+            <label>Background</label>
+            <input type="checkbox" checked id="cfg-asciirain"
+              onchange="updateConfig('display.asciiRain', this.checked)">
+          </div>
+          <div class="config-row" id="ascii-type-row">
+            <label>BG Type</label>
+            <select id="cfg-bg-type" onchange="updateConfig('display.bgType', this.value)">
+              <option value="waves">Waves</option>
+              <option value="plasma">Plasma</option>
+              <option value="fire">Fire</option>
+              <option value="topology">Topology</option>
+              <option value="ripples">Ripples</option>
+              <option value="fractal">Fractal</option>
+              <option value="lissajous">Lissajous</option>
+              <option value="snow">Snow</option>
+              <option value="hyperbolic">Hyperbolic</option>
+              <option value="spiral">Spiral</option>
+              <option value="moire">Moiré</option>
+              <option value="flow">Flow Field</option>
+            </select>
+          </div>
+          <div class="config-row" id="wave-symbols-row">
+            <label>Wave Symbols</label>
+            <select id="cfg-wave-symbols" onchange="updateConfig('display.waveSymbols', this.value); setWaveSymbols(this.value)">
+              <option value="dots">Dots ·∙•●</option>
+              <option value="runes">Runes ᚠᚢᚦᚨ</option>
+              <option value="alchemical">Alchemical ☽✧⊙⊕</option>
+              <option value="zodiac">Zodiac ♈♉♊♋</option>
+              <option value="occult">Occult ⛧✡☽☾</option>
+              <option value="sigils">Sigils ⚶♃♄♅</option>
+              <option value="geometric">Geometric △□◇●</option>
+              <option value="katakana">Katakana ｦｱｲｳ</option>
+              <option value="binary">Binary 01010</option>
+              <option value="blocks">Blocks ░▒▓█</option>
+              <option value="braille">Braille ⠁⠇⠟⣿</option>
+              <option value="circuit">Circuit ┌┐╔╗</option>
+              <option value="arrows">Arrows →↗↑↖</option>
+              <option value="math">Math ∑∫∇√</option>
+              <option value="chess">Chess ♙♘♗♕</option>
+              <option value="hacker">Hacker &lt;&gt;{}#$</option>
+            </select>
+          </div>
+          <div class="config-row" id="cell-size-row">
+            <label>Char Size <span id="cell-size-val">14</span>px</label>
+            <input type="range" min="8" max="28" step="2" value="14" id="cfg-cell-size"
+              oninput="document.getElementById('cell-size-val').textContent=this.value; setCellSize(parseInt(this.value))">
+          </div>
+          <div class="config-row" id="ascii-density-row">
+            <label>BG Intensity</label>
+            <input type="range" min="0.3" max="1" step="0.1" value="0.6" id="cfg-ascii-density"
+              oninput="updateConfig('display.asciiRainDensity', parseFloat(this.value))">
+          </div>
+          <div class="config-row" id="bg-opacity-row">
+            <label>BG Opacity</label>
+            <input type="range" min="0" max="100" step="5" value="100" id="cfg-bg-opacity"
+              oninput="updateConfig('display.bgOpacity', parseInt(this.value))">
+          </div>
+          <div class="config-row">
+            <label>Wire Thickness</label>
+            <input type="range" min="1" max="8" step="1" value="2" id="cfg-wire-thickness"
+              oninput="document.getElementById('wire-thickness-val').textContent=this.value+'px'; updateConfig('display.wireThickness', parseInt(this.value))">
+            <span class="range-val" id="wire-thickness-val">2px</span>
+          </div>
+          <div class="config-row">
+            <label>Wire Distance</label>
+            <input type="range" min="0.5" max="5" step="0.1" value="1.8" id="cfg-wire-distance"
+              oninput="document.getElementById('wire-distance-val').textContent=parseFloat(this.value).toFixed(1); updateConfig('display.wireDistance', parseFloat(this.value))">
+            <span class="range-val" id="wire-distance-val">1.8</span>
+          </div>
+        </div>
+      </details>
+      <details class="config-group">
+        <summary class="config-group-title">Pricing</summary>
+        <div class="config-group-body">
+          <div class="config-row">
+            <label>Model</label>
+            <select id="cfg-pricing-model" onchange="updateConfig('pricing.model', this.value)">
+              <optgroup label="Anthropic">
+                <option value="opus-4.6" selected>Opus 4.6 ($5/$25)</option>
+                <option value="opus-4.5">Opus 4.5 ($5/$25)</option>
+                <option value="opus-4.1">Opus 4.1 ($15/$75)</option>
+                <option value="opus-4">Opus 4 ($15/$75)</option>
+                <option value="sonnet-4.5">Sonnet 4.5 ($3/$15)</option>
+                <option value="sonnet-4">Sonnet 4 ($3/$15)</option>
+                <option value="haiku-4.5">Haiku 4.5 ($1/$5)</option>
+                <option value="haiku-3.5">Haiku 3.5 ($0.80/$4)</option>
+              </optgroup>
+              <optgroup label="OpenAI">
+                <option value="gpt-5.2">GPT-5.2 ($1.75/$14)</option>
+                <option value="gpt-5.1">GPT-5.1 ($1.25/$10)</option>
+                <option value="gpt-5">GPT-5 ($1.25/$10)</option>
+                <option value="gpt-5-mini">GPT-5 Mini ($0.25/$2)</option>
+                <option value="gpt-4.1">GPT-4.1 ($2/$8)</option>
+                <option value="gpt-4.1-mini">GPT-4.1 Mini ($0.40/$1.60)</option>
+                <option value="gpt-4o">GPT-4o ($2.50/$10)</option>
+                <option value="gpt-4o-mini">GPT-4o Mini ($0.15/$0.60)</option>
+                <option value="o3">o3 ($2/$8)</option>
+                <option value="o4-mini">o4-mini ($1.10/$4.40)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+      </details>
+      <details class="config-group">
+        <summary class="config-group-title">Features</summary>
+        <div class="config-group-body">
+          <div class="config-row">
+            <label>Thought Bubbles</label>
+            <input type="checkbox" checked id="cfg-bubbles"
+              onchange="updateConfig('features.thoughtBubbles', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Spawn Animations</label>
+            <input type="checkbox" checked id="cfg-spawnanim"
+              onchange="updateConfig('features.spawnAnimations', this.checked)">
+          </div>
+          <div class="config-row">
+            <label>Ambient Audio</label>
+            <input type="checkbox" id="cfg-audio"
+              onchange="updateConfig('features.ambientAudio', this.checked)">
+          </div>
+          <div class="config-row" id="audio-volume-row">
+            <label>Audio Volume</label>
+            <input type="range" min="0" max="100" step="5" value="50" id="cfg-audio-volume"
+              oninput="updateConfig('features.audioVolume', parseInt(this.value))">
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- Timeline Bar -->
+  <div id="timeline-bar"></div>
+
+  <!-- Tooltip -->
+  <div id="tooltip">
+    <div class="tooltip-title"></div>
+    <div class="tooltip-detail"></div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="context-menu" style="display:none">
+    <div class="ctx-item" data-action="focus">Focus Camera</div>
+    <div class="ctx-item" data-action="details">View Details</div>
+    <div class="ctx-item" data-action="copy">Copy Agent Info</div>
+    <div class="ctx-item" data-action="hide">Hide Agent</div>
+  </div>
+
+  <!-- Empty State -->
+  <div id="empty-state">
+    <h2>Waiting for Claude Code session...</h2>
+    <p>Events will appear here when Claude starts working</p>
+  </div>
+
+  <!-- Three.js from CDN -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

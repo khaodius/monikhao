@@ -1,0 +1,63 @@
+{
+  "port": 37800,
+  "host": "127.0.0.1",
+  "autoOpenBrowser": false,
+  "theme": {
+    "background": "#0a0a1a",
+    "mainAgent": "#4488ff",
+    "subagentColors": {
+      "Explore": "#00cccc",
+      "Plan": "#aa44ff",
+      "Bash": "#44cc44",
+      "general-purpose": "#ffffff",
+      "default": "#cccccc"
+    },
+    "toolColors": {
+      "Read": "#00cccc",
+      "Write": "#ff8844",
+      "Edit": "#cccc00",
+      "Bash": "#44cc44",
+      "Grep": "#aa44ff",
+      "Glob": "#ff44aa",
+      "Task": "#ffffff",
+      "WebSearch": "#ff4444",
+      "WebFetch": "#ff6644",
+      "TodoWrite": "#44aaff",
+      "default": "#888888"
+    }
+  },
+  "animation": {
+    "speed": 0.1,
+    "autoRotate": true,
+    "particleLifetime": 120000,
+    "orbitSpeed": 0.0015,
+    "trailLength": 15,
+    "maxFps": 110
+  },
+  "display": {
+    "showGrid": false,
+    "showLabels": true,
+    "showStationPanels": true,
+    "autoFocus": true,
+    "asciiRain": true,
+    "asciiRainDensity": 1,
+    "bgType": "hyperbolic",
+    "waveSymbols": "blocks",
+    "bgOpacity": 100,
+    "wireThickness": 2,
+    "wireDistance": 1.8,
+    "theme": "custom",
+    "customColor": "#165200",
+    "showFps": true
+  },
+  "features": {
+    "voiceInput": false,
+    "voiceMode": "toggle",
+    "thoughtBubbles": true,
+    "spawnAnimations": true,
+    "audioVolume": 10,
+    "ambientAudio": true
+  },
+  "maxTimelineEvents": 1000,
+  "maxFileNodes": 100
+}

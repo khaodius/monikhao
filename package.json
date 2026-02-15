@@ -1,0 +1,30 @@
+{
+  "name": "monikhao",
+  "version": "0.1.0-alpha",
+  "description": "Monikhao - Real-time 3D dashboard visualizing AI coding agent sessions",
+  "author": "khaos",
+  "license": "MIT",
+  "type": "module",
+  "main": "monikhao.js",
+  "scripts": {
+    "start": "node scripts/worker-service.cjs"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "monitoring",
+    "3d",
+    "visualization",
+    "dashboard",
+    "claude",
+    "opencode",
+    "threejs"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}
