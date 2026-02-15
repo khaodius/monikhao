@@ -104,7 +104,10 @@ This serves quite literally no use, but, this is a real-time 3D dashboard that v
 
    This installs the Node.js dependencies (`express`, `ws`) inside the `Monikhao/` folder.
 
-3. Restart OpenCode. The worker auto-starts and the dashboard is live at `http://127.0.0.1:37800`.
+3. Restart OpenCode. The worker auto-starts and the dashboard is live at `http://127.0.0.1:37800`. If it does not, run
+ ```
+   /kmoni-install
+ ```
 
 **How the bootstrap works:**
 
