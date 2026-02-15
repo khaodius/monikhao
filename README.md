@@ -106,7 +106,7 @@ This serves quite literally no use, but, this is a real-time 3D dashboard that v
 
 3. Restart OpenCode. The worker auto-starts and the dashboard is live at `http://127.0.0.1:37800`. If it does not, run
  ```
-   /kmoni-install
+   /kmoni-on
  ```
 
 **How the bootstrap works:**
