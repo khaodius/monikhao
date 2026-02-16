@@ -1213,6 +1213,12 @@ window.setCellSize = function(size) {
   updateConfig('display.cellSize', size);
 };
 
+window.setFontScale = function(percent) {
+  percent = Math.max(60, Math.min(160, percent));
+  document.documentElement.style.setProperty('--font-scale', (percent / 100).toString());
+  updateConfig('display.fontScale', percent);
+};
+
 function initBackground() {
   bgScene = new THREE.Scene();
   bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -3000,6 +3006,9 @@ function updateUI() {
 // Persistent session display order — survives re-renders
 const sessionOrder = []; // array of session ids in user's preferred order
 
+// Track which agent IDs are currently rendered to detect structural changes
+let _renderedAgentKey = '';
+
 function updateAgentsTab() {
   const container = document.getElementById('tab-agents');
   if (container.style.display === 'none') return;
@@ -3019,6 +3028,33 @@ function updateAgentsTab() {
   for (let i = sessionOrder.length - 1; i >= 0; i--) {
     if (!sessionMap.has(sessionOrder[i])) sessionOrder.splice(i, 1);
   }
+
+  // Fingerprint: agent IDs + statuses — if unchanged, patch in-place instead of rebuild
+  const agentKey = appState.agents.map(a => a.id + ':' + a.status).join(',');
+  const structureChanged = agentKey !== _renderedAgentKey;
+
+  if (!structureChanged) {
+    // Fast path: just update stats text for each agent, no DOM rebuild
+    for (const agent of appState.agents) {
+      const card = container.querySelector(`[data-agent-id="${CSS.escape(agent.id)}"]`);
+      if (!card) continue;
+      const statsEl = card.querySelector('.agent-stats');
+      if (statsEl) {
+        const lastTool = agent.toolCalls?.[agent.toolCalls.length - 1];
+        statsEl.textContent = (agent.toolCallCount || 0) + ' tool calls'
+          + (lastTool ? ' | Last: ' + lastTool.tool : '');
+      }
+      // Update dot status class
+      const dot = card.querySelector('.agent-dot');
+      if (dot) {
+        dot.className = 'agent-dot ' + agent.status;
+      }
+    }
+    return;
+  }
+
+  // Full rebuild only when agents are added/removed/status changes
+  _renderedAgentKey = agentKey;
 
   function buildTree(agents) {
     const roots = [];
@@ -3840,6 +3876,15 @@ function syncConfigUI() {
   if (pLifetime) pLifetime.value = anim.particleLifetime ?? 60000;
 
 
+
+  const fontScaleSlider = el('cfg-font-scale');
+  if (fontScaleSlider) {
+    const fs = display.fontScale ?? 100;
+    fontScaleSlider.value = fs;
+    const fsVal = el('font-scale-val');
+    if (fsVal) fsVal.textContent = fs;
+    document.documentElement.style.setProperty('--font-scale', (fs / 100).toString());
+  }
 
   const showFps = el('cfg-show-fps');
   if (showFps) showFps.checked = display.showFps ?? true;

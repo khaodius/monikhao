@@ -30,6 +30,7 @@
   --success: #40ff80;
   --warning: #ffdd44;
   --error: #ff4060;
+  --font-scale: 1;
 }
 
 body {
@@ -75,7 +76,7 @@ canvas { display: block; }
 
 #top-bar .title {
   font-family: 'Orbitron', monospace;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   font-weight: 800;
   letter-spacing: 2px;
   color: var(--accent-bright);
@@ -87,14 +88,14 @@ canvas { display: block; }
   font-family: 'Rajdhani', sans-serif;
   font-weight: 400;
   margin-left: 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   letter-spacing: 0;
 }
 
 #stats-bar {
   display: flex;
   gap: 16px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   overflow: visible;
   flex-wrap: wrap;
   max-height: 52px;
@@ -113,7 +114,7 @@ canvas { display: block; }
   min-width: 0;
 }
 
-.stat-label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+.stat-label { color: var(--text-dim); font-size: calc(11px * var(--font-scale)); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
 .stat-value { color: var(--neon-cyan); font-weight: 600; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px rgba(0, 255, 204, 0.3); min-width: 32px; text-align: right; display: inline-block; white-space: nowrap; }
 #stat-tools { min-width: 40px; }
 #stat-rate { min-width: 36px; }
@@ -193,7 +194,7 @@ canvas { display: block; }
   justify-content: center;
   z-index: 101;
   transition: right 0.3s ease;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
 }
 
 #panel-toggle.collapsed { right: 0; }
@@ -210,7 +211,7 @@ canvas { display: block; }
   padding: 12px;
   text-align: center;
   font-family: 'Orbitron', monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -273,10 +274,10 @@ canvas { display: block; }
   50% { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
 }
 
-.agent-item .agent-name { font-size: 14px; font-weight: 600; flex: 1; }
+.agent-item .agent-name { font-size: calc(14px * var(--font-scale)); font-weight: 600; flex: 1; }
 .agent-item .agent-type {
   font-family: 'Orbitron', monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   color: var(--accent);
   background: var(--accent-10);
   padding: 2px 8px;
@@ -285,14 +286,14 @@ canvas { display: block; }
 }
 .agent-item .agent-model {
   font-family: 'Orbitron', monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   color: var(--text-dim);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: 0.5px;
 }
-.agent-item .agent-stats { font-size: 12px; color: var(--text-dim); }
+.agent-item .agent-stats { font-size: calc(12px * var(--font-scale)); color: var(--text-dim); }
 
 /* Inline event log per agent */
 .agent-events {
@@ -313,13 +314,13 @@ canvas { display: block; }
   align-items: baseline;
   gap: 6px;
   padding: 2px 0;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   border-left: 2px solid var(--border);
   padding-left: 8px;
   line-height: 1.4;
   animation: fadeSlideIn 0.2s ease;
 }
-.agent-event-item .ae-time { color: var(--text-dim); font-size: 9px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.agent-event-item .ae-time { color: var(--text-dim); font-size: calc(9px * var(--font-scale)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .agent-event-item .ae-tool { font-weight: 600; flex-shrink: 0; }
 .agent-event-item .ae-detail { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -346,13 +347,13 @@ canvas { display: block; }
   align-items: flex-start;
   gap: 6px;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: rgba(200, 180, 255, 0.85);
   font-style: italic;
   line-height: 1.4;
   animation: fadeSlideIn 0.2s ease;
 }
-.agent-thought-item .at-icon { flex-shrink: 0; font-size: 12px; }
+.agent-thought-item .at-icon { flex-shrink: 0; font-size: calc(12px * var(--font-scale)); }
 .agent-thought-item .at-text { white-space: normal; word-break: break-word; }
 
 /* Only the latest thought is fully bright */
@@ -364,7 +365,7 @@ canvas { display: block; }
 .tree-branch {
   color: var(--border-glow);
   font-family: monospace;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   white-space: pre;
   flex-shrink: 0;
 }
@@ -400,7 +401,7 @@ canvas { display: block; }
   padding: 8px 12px;
   margin-bottom: 6px;
   font-family: 'Orbitron', monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   letter-spacing: 1px;
   color: var(--accent);
   border-bottom: 1px solid var(--border);
@@ -408,7 +409,7 @@ canvas { display: block; }
 .session-header:first-child { margin-top: 0; }
 .drag-grip {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   opacity: 0.4;
   cursor: grab;
   user-select: none;
@@ -423,7 +424,7 @@ canvas { display: block; }
 .session-dot.ended { background: var(--text-dim); opacity: 0.5; }
 .session-model {
   font-family: 'Orbitron', monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   color: var(--accent);
   background: var(--accent-10);
   padding: 1px 6px;
@@ -434,7 +435,7 @@ canvas { display: block; }
 .session-count {
   margin-left: auto;
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
 }
 
 /* ─── Config Panel ────────────────────────────────────────────────────────── */
@@ -450,7 +451,7 @@ details.config-group[open] {
 
 summary.config-group-title {
   font-family: 'Orbitron', monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -469,7 +470,7 @@ summary.config-group-title:hover {
 }
 summary.config-group-title::before {
   content: '\25B6';
-  font-size: 8px;
+  font-size: calc(8px * var(--font-scale));
   color: var(--accent);
   transition: transform 0.2s;
   display: inline-block;
@@ -490,11 +491,11 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   padding: 5px 0;
 }
 
-.config-row label { font-size: 12px; color: var(--text); }
+.config-row label { font-size: calc(12px * var(--font-scale)); color: var(--text); }
 .config-row input[type="range"] { width: 100px; accent-color: var(--accent); }
 .config-row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
-.config-row select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-family: 'Rajdhani', sans-serif; }
-.range-val { font-size: 11px; color: var(--neon-cyan); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+.config-row select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: calc(11px * var(--font-scale)); font-family: 'Rajdhani', sans-serif; }
+.range-val { font-size: calc(11px * var(--font-scale)); color: var(--neon-cyan); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ─── Tooltip ─────────────────────────────────────────────────────────────── */
 #tooltip {
@@ -505,7 +506,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border: 1px solid var(--border-glow);
   border-radius: 10px;
   padding: 12px 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   max-width: 340px;
   z-index: 200;
   pointer-events: none;
@@ -513,7 +514,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 }
 
 #tooltip .tooltip-title { font-weight: 600; margin-bottom: 6px; color: var(--accent-bright); }
-#tooltip .tooltip-detail { color: var(--text-dim); font-size: 11px; word-break: break-all; line-height: 1.6; }
+#tooltip .tooltip-detail { color: var(--text-dim); font-size: calc(11px * var(--font-scale)); word-break: break-all; line-height: 1.6; }
 
 /* ─── Connection Banner ───────────────────────────────────────────────────── */
 #connection-banner {
@@ -524,7 +525,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   color: var(--error);
   text-align: center;
   padding: 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   z-index: 99;
   display: none;
 }
@@ -566,7 +567,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border: 1px solid var(--border-glow);
   border-radius: 10px;
   padding: 6px 10px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--text);
   max-width: 200px;
   pointer-events: none;
@@ -597,7 +598,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border-radius: 6px;
   padding: 3px 8px;
   font-family: 'Orbitron', monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--text);
   white-space: nowrap;
   pointer-events: none;
@@ -617,7 +618,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 }
 
 .agent-label-badge {
-  font-size: 8px;
+  font-size: calc(8px * var(--font-scale));
   color: var(--accent);
   background: var(--accent-15);
   padding: 1px 5px;
@@ -634,7 +635,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border-left: 3px solid var(--accent);
   border-radius: 8px;
   padding: 4px 10px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--text);
   max-width: 280px;
   white-space: normal;
@@ -662,7 +663,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border-radius: 6px;
   padding: 5px 0;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   color: rgba(190, 170, 230, 0.8);
   width: 320px;
   max-height: 130px;
@@ -701,7 +702,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 .thinking-entry .te-icon {
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   line-height: 15px;
 }
 
@@ -734,7 +735,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--text-dim);
   width: 130px;
   pointer-events: none;
@@ -742,7 +743,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 .station-panel .station-tool {
   font-family: 'Orbitron', monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--text);
@@ -752,7 +753,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 .station-panel .station-stats {
   display: flex;
   gap: 8px;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
 }
 
 .station-panel .station-stats b {
@@ -774,7 +775,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 .ctx-item {
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--text);
   cursor: pointer;
   transition: background 0.15s;
@@ -827,7 +828,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border: 1px solid var(--border-glow);
   border-radius: 12px;
   padding: 10px 20px;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   color: var(--accent-bright);
   z-index: 200;
   max-width: 500px;
@@ -852,7 +853,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 #empty-state h2 {
   font-family: 'Orbitron', monospace;
-  font-size: 18px;
+  font-size: calc(18px * var(--font-scale));
   color: var(--accent);
   font-weight: 600;
   letter-spacing: 2px;
@@ -861,6 +862,6 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 }
 
 #empty-state p {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   color: var(--text-dim);
 }

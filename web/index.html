@@ -155,6 +155,11 @@
         <summary class="config-group-title">Display</summary>
         <div class="config-group-body">
           <div class="config-row">
+            <label>Font Size <span id="font-scale-val">100</span>%</label>
+            <input type="range" min="60" max="160" step="5" value="100" id="cfg-font-scale"
+              oninput="document.getElementById('font-scale-val').textContent=this.value; setFontScale(parseInt(this.value))">
+          </div>
+          <div class="config-row">
             <label>Show FPS</label>
             <input type="checkbox" checked id="cfg-show-fps"
               onchange="updateConfig('display.showFps', this.checked)">
