@@ -125,9 +125,9 @@
         <div class="config-group-body">
           <div class="config-row">
             <label>Max FPS</label>
-            <input type="range" min="0" max="144" step="1" value="0" id="cfg-max-fps"
-              oninput="document.getElementById('max-fps-val').textContent=this.value==0?'Off':this.value; updateConfig('animation.maxFps', parseInt(this.value))">
-            <span class="range-val" id="max-fps-val">Off</span>
+            <input type="range" min="10" max="240" step="1" value="240" id="cfg-max-fps"
+              oninput="var v=parseInt(this.value); document.getElementById('max-fps-val').textContent=v>=240?'Max':v; updateConfig('animation.maxFps', v>=240?0:v)">
+            <span class="range-val" id="max-fps-val">Max</span>
           </div>
           <div class="config-row">
             <label>Speed</label>

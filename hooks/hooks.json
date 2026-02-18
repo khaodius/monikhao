@@ -59,6 +59,18 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "^/kmoni-",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/prompt-hook.cjs\"",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

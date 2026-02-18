@@ -246,7 +246,12 @@ function processEvent(event) {
         sessions.delete(sid);
       }
       const ss = getOrCreateSession(sid, timestamp, source);
-      getOrCreateMainAgent(ss);
+      const mainAgent = getOrCreateMainAgent(ss);
+      // Capture model from session_start (e.g. OpenCode sends it here)
+      if (model && !mainAgent.model) {
+        mainAgent.model = model;
+        ss.session.model = model;
+      }
       break;
     }
     case 'session_end': {
@@ -532,6 +537,31 @@ app.post('/api/voice-command', (req, res) => {
   res.json({ status: 'ok' });
 });
 app.post('/api/admin/shutdown', (req, res) => { res.json({ status: 'shutting_down' }); process.exit(0); });
+
+// Disconnect sessions from a specific source (claudecode/opencode) without killing the worker
+app.post('/api/admin/disconnect', (req, res) => {
+  const source = (req.query.source || req.body?.source || '').toLowerCase();
+  if (!source) return res.status(400).json({ error: 'source required' });
+  let removed = 0;
+  for (const [id, ss] of sessions) {
+    if ((ss.session.source || '').toLowerCase() === source) {
+      for (const a of ss.agents) { if (a.type === 'main') usedNames.delete(a.name); }
+      sessions.delete(id);
+      removed++;
+    }
+  }
+  if (removed) broadcast({ type: 'state_update', state: getPublicState() });
+  res.json({ status: 'ok', removed });
+});
+
+// Report which sources have active sessions
+app.get('/api/sessions/sources', (req, res) => {
+  const sources = new Set();
+  for (const [, ss] of sessions) {
+    if (ss.session.status === 'active') sources.add(ss.session.source || 'unknown');
+  }
+  res.json({ sources: [...sources] });
+});
 
 // ─── HTTP + WebSocket ──────────────────────────────────────────────────────────
 const server = createServer(app);

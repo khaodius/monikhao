@@ -79,18 +79,36 @@ const MODEL_PRICING = {
 /** Convert raw model ID (e.g. "claude-opus-4-6-20250514") to display name */
 function formatModelName(raw) {
   if (!raw) return '';
-  // Anthropic: "claude-opus-4-6-20250514" → "Opus 4.6"
-  const claude = raw.match(/claude-(\w+)-(\d+)-(\d+)/);
-  if (claude) {
-    const family = claude[1].charAt(0).toUpperCase() + claude[1].slice(1);
-    return `${family} ${claude[2]}.${claude[3]}`;
+  // Anthropic new: "claude-opus-4-6-20250514" → "Opus 4.6"
+  const claudeNew = raw.match(/claude-(\w+)-(\d+)-(\d+)/);
+  if (claudeNew) {
+    const family = claudeNew[1].charAt(0).toUpperCase() + claudeNew[1].slice(1);
+    return `${family} ${claudeNew[2]}.${claudeNew[3]}`;
   }
+  // Anthropic old: "claude-3-5-sonnet-20241022" → "Sonnet 3.5"
+  const claudeOld = raw.match(/claude-(\d+)-(\d+)-(\w+)/);
+  if (claudeOld) {
+    const family = claudeOld[3].charAt(0).toUpperCase() + claudeOld[3].slice(1);
+    return `${family} ${claudeOld[1]}.${claudeOld[2]}`;
+  }
+  // Anthropic minimal: "claude-3-haiku" → "Haiku 3"
+  const claudeMin = raw.match(/claude-(\d+)-(\w+)/);
+  if (claudeMin) {
+    const family = claudeMin[2].charAt(0).toUpperCase() + claudeMin[2].slice(1);
+    return `${family} ${claudeMin[1]}`;
+  }
+  // Google: "gemini-2.5-pro-preview" → "Gemini 2.5 Pro"
+  const gemini = raw.match(/gemini-([\d.]+)-(\w+)/);
+  if (gemini) return `Gemini ${gemini[1]} ${gemini[2].charAt(0).toUpperCase() + gemini[2].slice(1)}`;
   // OpenAI: "gpt-4o-2024-08-06" → "GPT-4o"
   const gpt = raw.match(/^(gpt-[\w.]+)/);
   if (gpt) return gpt[1].toUpperCase();
   // o-series: "o3-2025-04-16" → "o3"
   const oSeries = raw.match(/^(o\d[\w-]*?)(-\d{4})/);
   if (oSeries) return oSeries[1];
+  // Deepseek, Mistral, etc: just capitalize first word
+  const parts = raw.split(/[-_]/);
+  if (parts.length > 1) return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
   return raw;
 }
 
@@ -254,6 +272,20 @@ const BG_VERTEX = /* glsl */`
 void main() { gl_Position = vec4(position, 1.0); }
 `;
 
+// Shared GLSL prefix: 3D parallax warp applied to cell coordinates
+// Simulates looking at a tilted plane — edges shift more than center
+const BG_PARALLAX = /* glsl */`
+  vec2 parallaxShift(vec2 norm, vec2 camRot) {
+    // Primary: strong scroll — makes the ASCII plane feel infinite
+    vec2 scrolled = norm + camRot * 0.5;
+    // Secondary: subtle perspective warp — screen edges shift slightly
+    // more than center, giving a depth cue without stretching
+    vec2 fromCenter = norm - 0.5;
+    scrolled += fromCenter * camRot * 0.08;
+    return scrolled;
+  }
+`;
+
 const BG_SHADERS = {
   'waves': /* glsl */`
     precision highp float;
@@ -335,8 +367,8 @@ const BG_SHADERS = {
       float cx = uCamPos.x * 0.08 + uCamRot.x * 1.5;
       float cy = uCamPos.y * 0.06 + uCamRot.y * 1.2;
 
-      // Offset the cell coordinates to scroll the pattern with camera
-      vec2 shifted = norm + vec2(uCamRot.x * 0.3, uCamRot.y * 0.25);
+      // 3D parallax warp — edges shift more than center for depth illusion
+      vec2 shifted = parallaxShift(norm, uCamRot);
 
       float w1 = sin(shifted.x * 8.0 + t * 0.8 + cx) * cos(shifted.y * 6.0 - t * 0.5 + cy);
       float w2 = sin((shifted.x + shifted.y) * 5.0 - t * 1.2 + cx * 0.6) * 0.6;
@@ -394,7 +426,7 @@ const BG_SHADERS = {
       vec2 norm = cell / gridSize;
       float t = uTime;
 
-      vec2 shifted = norm + vec2(uCamRot.x * 0.2, uCamRot.y * 0.15);
+      vec2 shifted = parallaxShift(norm, uCamRot);
 
       float p1 = sin(shifted.x * 10.0 + t * 0.7);
       float p2 = sin(shifted.y * 8.0 - t * 0.9);
@@ -470,7 +502,7 @@ const BG_SHADERS = {
       vec2 norm = cell / gridSize;
       float t = uTime;
 
-      vec2 shifted = norm + vec2(uCamRot.x * 0.1, 0.0);
+      vec2 shifted = parallaxShift(norm, uCamRot);
 
       // Fire rises from bottom, turbulence increases with height
       vec2 fireUV = vec2(shifted.x * 4.0, shifted.y * 3.0 - t * 1.5);
@@ -550,7 +582,7 @@ const BG_SHADERS = {
       vec2 norm = cell / gridSize;
       float t = uTime;
 
-      vec2 shifted = norm * 4.0 + vec2(uCamRot.x * 0.5, uCamRot.y * 0.4) + t * 0.05;
+      vec2 shifted = parallaxShift(norm, uCamRot) * 4.0 + t * 0.05;
 
       // Mouse trail warps terrain
       vec2 scrUV = gl_FragCoord.xy / uResolution.xy;
@@ -611,7 +643,7 @@ const BG_SHADERS = {
       vec2 norm = cell / gridSize;
       float t = uTime;
 
-      vec2 shifted = norm + vec2(uCamRot.x * 0.15, uCamRot.y * 0.12);
+      vec2 shifted = parallaxShift(norm, uCamRot);
 
       float val = 0.0;
       for (int i = 0; i < 5; i++) {
@@ -663,7 +695,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = cell / gridSize;
+      vec2 norm = parallaxShift(cell / gridSize, uCamRot);
       float t = uTime;
 
       // Mouse trail shifts fractal center
@@ -677,7 +709,6 @@ const BG_SHADERS = {
 
       float zoom = 2.5 + sin(t * 0.05) * 1.0;
       vec2 center = vec2(-0.745, 0.186) + vec2(sin(t * 0.03), cos(t * 0.04)) * 0.02;
-      center += uCamRot * 0.05;
       center += tGrad * 0.03;
 
       vec2 c = center + (norm - 0.5) * zoom;
@@ -733,7 +764,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = (cell / gridSize - 0.5) * 2.0;
+      vec2 norm = (parallaxShift(cell / gridSize, uCamRot) - 0.5) * 2.0;
       float t = uTime;
 
       // Mouse trail displacement
@@ -745,8 +776,6 @@ const BG_SHADERS = {
         texture2D(uTrail, scrUV + vec2(0, tOfs.y)).r - texture2D(uTrail, scrUV - vec2(0, tOfs.y)).r
       );
       norm += tGrad * 0.15;
-
-      norm += uCamRot * 0.2;
 
       float val = 0.0;
       // Multiple Lissajous curves with different frequency ratios
@@ -806,7 +835,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = cell / gridSize;
+      vec2 norm = parallaxShift(cell / gridSize, uCamRot);
       float t = uTime;
 
       float val = 0.0;
@@ -817,10 +846,9 @@ const BG_SHADERS = {
         float speed = 0.4 + fl * 0.15;
         float scale = 15.0 + fl * 8.0;
         float drift = sin(t * (0.2 + fl * 0.05)) * (0.02 + fl * 0.01);
-        float windShift = uCamRot.x * (0.1 + fl * 0.05);
 
         vec2 st = norm * scale;
-        st.x += drift + windShift;
+        st.x += drift;
         st.y += t * speed;
 
         vec2 id = floor(st);
@@ -876,8 +904,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = (cell / gridSize - 0.5) * 2.0;
-      norm += uCamRot * 0.15;
+      vec2 norm = (parallaxShift(cell / gridSize, uCamRot) - 0.5) * 2.0;
       float t = uTime;
 
       // Poincaré disk — hyperbolic tiling
@@ -945,8 +972,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = (cell / gridSize - 0.5) * 2.0;
-      norm += uCamRot * 0.12;
+      vec2 norm = (parallaxShift(cell / gridSize, uCamRot) - 0.5) * 2.0;
       float t = uTime;
 
       float r = length(norm);
@@ -1010,8 +1036,7 @@ const BG_SHADERS = {
       vec2 cell = floor(gl_FragCoord.xy / uCellSize);
       vec2 cellUV = fract(gl_FragCoord.xy / uCellSize);
       cellUV.y = 1.0 - cellUV.y;
-      vec2 norm = (cell / gridSize - 0.5) * 2.0;
-      norm += uCamRot * 0.1;
+      vec2 norm = (parallaxShift(cell / gridSize, uCamRot) - 0.5) * 2.0;
       float t = uTime;
 
       // Overlapping circular wave patterns — moiré interference
@@ -1100,7 +1125,7 @@ const BG_SHADERS = {
       vec2 norm = cell / gridSize;
       float t = uTime;
 
-      vec2 shifted = norm + vec2(uCamRot.x * 0.1, uCamRot.y * 0.08);
+      vec2 shifted = parallaxShift(norm, uCamRot);
 
       // Advect position through curl noise field — creates smooth flowing streaks
       vec2 pos = shifted * 4.0;
@@ -1245,7 +1270,7 @@ function initBackground() {
       uTrail: { value: null },
     },
     vertexShader: BG_VERTEX,
-    fragmentShader: BG_SHADERS['waves'],
+    fragmentShader: BG_SHADERS['waves'].replace('void main() {', BG_PARALLAX + '\n    void main() {'),
     depthWrite: false,
     depthTest: false,
   });
@@ -1286,7 +1311,7 @@ function initBackground() {
 
 function setBgType(type) {
   if (!BG_SHADERS[type] || type === currentBgType) return;
-  bgMaterial.fragmentShader = BG_SHADERS[type];
+  bgMaterial.fragmentShader = BG_SHADERS[type].replace('void main() {', BG_PARALLAX + '\n    void main() {');
   bgMaterial.needsUpdate = true;
   currentBgType = type;
 }
@@ -1335,9 +1360,9 @@ function updateBackground() {
 
   if (camera) {
     bgMaterial.uniforms.uCamPos.value.copy(camera.position);
-    // World direction scaled to match Euler-like range, smooth + no wrap
+    // World direction scaled for strong 3D parallax feel
     camera.getWorldDirection(_tempDir);
-    bgMaterial.uniforms.uCamRot.value.set(_tempDir.x * 4.0, _tempDir.y * 4.0);
+    bgMaterial.uniforms.uCamRot.value.set(_tempDir.x * 6.0, _tempDir.y * 6.0);
   }
 
   bgTime += 0.015 * speed;
@@ -1459,6 +1484,13 @@ function createAgentLabel(agent) {
     badge.className = 'agent-label-badge';
     badge.textContent = agent.subagentType || agent.type;
     div.appendChild(badge);
+  }
+
+  if (agent.model) {
+    const modelBadge = document.createElement('span');
+    modelBadge.className = 'agent-label-badge agent-label-model';
+    modelBadge.textContent = formatModelName(agent.model);
+    div.appendChild(modelBadge);
   }
 
   const label = new CSS2DObject(div);
@@ -3280,7 +3312,8 @@ function addEventToFeed(event) {
 }
 
 function appendEventDOM(container, ev) {
-  const time = new Date(ev.timestamp).toLocaleTimeString();
+  const d = new Date(ev.timestamp);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const div = document.createElement('div');
   div.className = 'agent-event-item';
   div.style.borderLeftColor = ev.color;
@@ -3858,9 +3891,9 @@ function syncConfigUI() {
   const maxFps = el('cfg-max-fps');
   if (maxFps) {
     const mf = anim.maxFps ?? 0;
-    maxFps.value = mf;
+    maxFps.value = mf === 0 ? 240 : mf;
     const mfVal = el('max-fps-val');
-    if (mfVal) mfVal.textContent = mf === 0 ? 'Off' : mf;
+    if (mfVal) mfVal.textContent = mf === 0 ? 'Max' : mf;
   }
 
   const speed = el('cfg-speed');

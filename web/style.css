@@ -293,7 +293,7 @@ canvas { display: block; }
   border-radius: 4px;
   letter-spacing: 0.5px;
 }
-.agent-item .agent-stats { font-size: calc(12px * var(--font-scale)); color: var(--text-dim); }
+.agent-item .agent-stats { font-size: calc(12px * var(--font-scale)); color: var(--text-dim); font-weight: 500; }
 
 /* Inline event log per agent */
 .agent-events {
@@ -313,16 +313,16 @@ canvas { display: block; }
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 2px 0;
-  font-size: calc(10px * var(--font-scale));
+  padding: 3px 0;
+  font-size: calc(12px * var(--font-scale));
   border-left: 2px solid var(--border);
   padding-left: 8px;
-  line-height: 1.4;
+  line-height: 1.5;
   animation: fadeSlideIn 0.2s ease;
 }
-.agent-event-item .ae-time { color: var(--text-dim); font-size: calc(9px * var(--font-scale)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.agent-event-item .ae-tool { font-weight: 600; flex-shrink: 0; }
-.agent-event-item .ae-detail { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-event-item .ae-time { color: var(--text-dim); font-size: calc(11px * var(--font-scale)); font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 5.5em; }
+.agent-event-item .ae-tool { font-weight: 700; flex-shrink: 0; }
+.agent-event-item .ae-detail { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Agent Thoughts Box */
 .agent-thoughts {
@@ -625,6 +625,12 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   border-radius: 3px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+}
+.agent-label-model {
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.06);
+  font-family: 'Orbitron', monospace;
+  text-transform: none;
 }
 
 /* ─── CSS2D Thought Bubbles ──────────────────────────────────────────────── */

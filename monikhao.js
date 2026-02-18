@@ -17,7 +17,7 @@
  * Override root:  MONIKHAO_PATH       (absolute path to Monikhao folder)
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync,
   appendFileSync, unlinkSync, openSync, closeSync
@@ -65,6 +65,7 @@ const WORKER_LOG = join(DATA_DIR, 'worker-stderr.log')
 const WORKER_SCRIPT = PLUGIN_ROOT ? join(PLUGIN_ROOT, 'scripts', 'worker-service.cjs') : null
 
 let sessionId = null
+let detectedModel = null
 let _sessionStartSent = false   // Guard against multiple plugin activations sending duplicate session_start
 let _exitHandlersRegistered = false
 
@@ -84,105 +85,33 @@ function ensureCommands() {
     const cmdDir = join(homedir(), '.config', 'opencode', 'commands')
     if (!existsSync(cmdDir)) mkdirSync(cmdDir, { recursive: true })
 
-    const root = PLUGIN_ROOT
-      ? PLUGIN_ROOT.replace(/\\/g, '/')
-      : '~/.config/opencode/plugins/Monikhao'
+    const ctl = PLUGIN_ROOT
+      ? join(PLUGIN_ROOT, 'scripts', 'kmoni-ctl.cjs').replace(/\\/g, '/')
+      : '~/.config/opencode/plugins/Monikhao/scripts/kmoni-ctl.cjs'
 
-    // /kmoni-install
-    const installFile = join(cmdDir, 'kmoni-install.md')
-    if (!existsSync(installFile)) {
-      writeFileSync(installFile, [
-        '---',
-        'description: Install Monikhao agent monitor dependencies',
-        '---',
-        '',
-        'Install the Monikhao agent monitor plugin. Follow these steps exactly:',
-        '',
-        `1. The Monikhao project directory is at: ${root}`,
-        '   Verify it exists.',
-        '',
-        '2. Install Node.js dependencies:',
-        '   ```bash',
-        `   cd "${root}" && npm install --production`,
-        '   ```',
-        '   If npm is unavailable, try:',
-        '   ```bash',
-        `   cd "${root}" && bun install --production`,
-        '   ```',
-        '',
-        '3. Verify that express and ws are installed:',
-        '   ```bash',
-        `   ls "${root}/node_modules/express/package.json"`,
-        '   ```',
-        '',
-        '4. Tell the user:',
-        '   - Dependencies are installed.',
-        '   - Restart OpenCode for the agent monitor to activate.',
-        '   - After restart, the 3D dashboard will be live at http://127.0.0.1:37800',
-        '',
-      ].join('\n'))
-      debugLog('Created /kmoni-install command')
+    // Minimal single-command .md files — just call kmoni-ctl.cjs directly.
+    // The tui.command.execute hook handles these programmatically first;
+    // these .md files are a fallback if the hook doesn't fire.
+    const cmds = {
+      'kmoni-on':      { desc: 'Start the Monikhao worker',              action: 'on' },
+      'kmoni-off':     { desc: 'Stop the Monikhao worker',               action: 'off' },
+      'kmoni-install': { desc: 'Install Monikhao dependencies',          action: 'install' },
+      'kmoni-status':  { desc: 'Show Monikhao worker status',            action: 'status' },
     }
 
-    // /kmoni-on
-    const onFile = join(cmdDir, 'kmoni-on.md')
-    if (!existsSync(onFile)) {
-      writeFileSync(onFile, [
+    for (const [name, cfg] of Object.entries(cmds)) {
+      writeFileSync(join(cmdDir, name + '.md'), [
         '---',
-        'description: Start the Monikhao agent monitor worker',
+        `description: ${cfg.desc}`,
         '---',
         '',
-        'Start the Monikhao agent monitor worker service. Follow these steps:',
-        '',
-        '1. First check if it\'s already running:',
-        '   ```bash',
-        '   curl -s http://127.0.0.1:37800/api/health',
-        '   ```',
-        '   If it returns `{"status":"ok"...}`, tell the user the worker is already running and the dashboard is at http://127.0.0.1:37800',
-        '',
-        '2. If the health check fails, start the worker as a detached background process:',
-        '   ```bash',
-        `   nohup node "${root}/scripts/worker-service.cjs" > /dev/null 2>&1 &`,
-        '   ```',
-        '   On Windows:',
-        '   ```bash',
-        `   start /b node "${root}/scripts/worker-service.cjs"`,
-        '   ```',
-        '',
-        '3. Wait 2 seconds, then verify it started:',
-        '   ```bash',
-        '   curl -s http://127.0.0.1:37800/api/health',
-        '   ```',
-        '',
-        '4. Tell the user the dashboard is live at http://127.0.0.1:37800',
-        '',
+        `Run this exact command. Do not explain, modify, or add steps. Just run it and show the raw output:`,
+        '```bash',
+        `node "${ctl}" ${cfg.action}`,
+        '```',
       ].join('\n'))
-      debugLog('Created /kmoni-on command')
     }
-
-    // /kmoni-off
-    const offFile = join(cmdDir, 'kmoni-off.md')
-    if (!existsSync(offFile)) {
-      writeFileSync(offFile, [
-        '---',
-        'description: Stop the Monikhao agent monitor worker',
-        '---',
-        '',
-        'Stop the Monikhao agent monitor worker service. Follow these steps:',
-        '',
-        '1. Send the shutdown command:',
-        '   ```bash',
-        '   curl -s -X POST http://127.0.0.1:37800/api/admin/shutdown',
-        '   ```',
-        '   If it returns `{"status":"shutting_down"}`, the worker has been stopped.',
-        '',
-        '2. If the curl fails (connection refused), the worker is already stopped. Tell the user.',
-        '',
-        '3. Tell the user the Monikhao worker has been stopped. It will auto-start again on next OpenCode or Claude Code session, or they can run /kmoni-on to start it manually.',
-        '',
-      ].join('\n'))
-      debugLog('Created /kmoni-off command')
-    }
+    debugLog('Wrote /kmoni-* command files')
   } catch (e) {
     debugLog(`Failed to create commands: ${e.message}`)
   }
@@ -317,7 +246,7 @@ function getSessionId() {
 function makeEvent(phase, extra) {
   return {
     phase, timestamp: Date.now(), session_id: getSessionId(),
-    source: 'opencode',
+    source: 'opencode', model: detectedModel,
     tool_name: null, tool_input: null, tool_response: null,
     ...extra
   }
@@ -342,10 +271,28 @@ export const Monikhao = async (ctx) => {
     return {}
   }
 
+  // ── Model detection via client API ─────────────────────────────────────────
+  async function detectModel() {
+    try {
+      if (!ctx.client) return
+      const sessions = await ctx.client.session.list()
+      if (sessions?.data) {
+        for (const s of Object.values(sessions.data)) {
+          const m = s.model || s.modelID || s.config?.model
+          if (m) {
+            const str = typeof m === 'object' ? (m.modelID || m.id || null) : String(m)
+            if (str && str !== 'null') { detectedModel = str; debugLog(`Model from session API: ${str}`); return }
+          }
+        }
+      }
+    } catch (e) { debugLog(`Model detection failed: ${e.message}`) }
+  }
+
   // ── Full plugin mode ────────────────────────────────────────────────────────
   debugLog(`Plugin active (root: ${PLUGIN_ROOT}, dir: ${ctx.directory || 'unknown'})`)
 
   const workerReady = await ensureWorker()
+  await detectModel()
   if (workerReady && !_sessionStartSent) {
     _sessionStartSent = true
     await postEvent(makeEvent('session_start'))
@@ -379,7 +326,59 @@ export const Monikhao = async (ctx) => {
   }
 
   return {
+    // ── Direct command execution (bypasses AI) ────────────────────────────────
+    'tui.command.execute': async (input) => {
+      const name = (input?.command || input?.name || '').replace(/^\//, '')
+      const ctl = join(PLUGIN_ROOT, 'scripts', 'kmoni-ctl.cjs')
+
+      if (name === 'kmoni-on' || name === 'kmoni-off' || name === 'kmoni-install' || name === 'kmoni-status') {
+        const action = name.replace('kmoni-', '')
+        const args = [ctl, action]
+        if (action === 'off') args.push('--source=opencode')
+        try {
+          const out = execFileSync(process.execPath, args, {
+            timeout: 30000,
+            encoding: 'utf8',
+            env: { ...process.env, MONIKHAO_ROOT: PLUGIN_ROOT }
+          })
+          debugLog(`/${name} executed: ${out.trim()}`)
+          return { output: out.trim(), handled: true }
+        } catch (e) {
+          const msg = e.stderr || e.stdout || e.message
+          debugLog(`/${name} failed: ${msg}`)
+          return { output: 'Error: ' + msg, handled: true }
+        }
+      }
+    },
+
+    // ── Model detection via chat.params hook ──────────────────────────────────
+    'chat.params': async (input, output) => {
+      if (input?.model) {
+        const m = input.model
+        const newModel = typeof m === 'object'
+          ? (m.modelID || m.id || m.model || m.name || JSON.stringify(m))
+          : String(m)
+        if (newModel && newModel !== detectedModel) {
+          const prev = detectedModel
+          detectedModel = newModel
+          debugLog(`Model ${prev ? 'changed' : 'detected'}: ${detectedModel} (provider: ${input.provider || 'unknown'})`)
+          if (_sessionStartSent) {
+            await postEvent(makeEvent('session_start'))
+          }
+        }
+      }
+    },
+
     'tool.execute.before': async (input, output) => {
+      // Fallback: pick up model from tool metadata if chat.params didn't fire
+      const m = input?.model || input?.modelID || output?.model
+      if (m) {
+        const newModel = typeof m === 'object' ? (m.modelID || m.id || null) : String(m)
+        if (newModel && newModel !== detectedModel) {
+          detectedModel = newModel
+          debugLog(`Model from tool input: ${detectedModel}`)
+        }
+      }
       await postEvent(makeEvent('pre', {
         tool_name: input.tool || null,
         tool_input: output?.args || null,
@@ -398,19 +397,28 @@ export const Monikhao = async (ctx) => {
 
     event: async ({ event }) => {
       const type = event.type
+      const props = event.properties || {}
+
+      // Extract model from any event properties
+      const evtModel = props.model || props.modelID || props.config?.model
+      if (evtModel && !detectedModel) {
+        detectedModel = typeof evtModel === 'object' ? (evtModel.modelID || evtModel.id || null) : String(evtModel)
+        if (detectedModel) debugLog(`Model from event ${type}: ${detectedModel}`)
+      }
 
       if (type === 'session.created') {
-        const newId = event.properties?.id
+        const newId = props.id
         if (newId && newId !== sessionId) {
           sessionId = newId
           debugLog(`Session ID updated to: ${sessionId}`)
         }
+        await detectModel()
         // If session_start wasn't sent during activation (worker was down), send it now
         if (!_sessionStartSent) {
           _sessionStartSent = true
           await ensureWorker()
           await postEvent(makeEvent('session_start'))
-          debugLog(`Session started (deferred): ${sessionId}`)
+          debugLog(`Session started (deferred): ${sessionId} (model: ${detectedModel || 'unknown'})`)
         }
       }
 

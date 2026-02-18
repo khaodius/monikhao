@@ -30,7 +30,7 @@
     "speed": 0.1,
     "autoRotate": true,
     "particleLifetime": 120000,
-    "orbitSpeed": 0.0015,
+    "orbitSpeed": 0.0005,
     "trailLength": 15,
     "maxFps": 110
   },
@@ -41,13 +41,13 @@
     "autoFocus": true,
     "asciiRain": true,
     "asciiRainDensity": 1,
-    "bgType": "moire",
+    "bgType": "waves",
     "waveSymbols": "blocks",
     "bgOpacity": 100,
     "wireThickness": 2,
     "wireDistance": 1.8,
     "theme": "custom",
-    "customColor": "#520000",
+    "customColor": "#55038c",
     "showFps": true
   },
   "features": {
