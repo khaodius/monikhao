@@ -2885,6 +2885,7 @@ function updateSpawnAnimations() {
 
 // ─── Animation Loop ────────────────────────────────────────────────────────────
 let lastFrameTime = 0;
+let _lastCss2dRender = 0;
 const _tempDir = new THREE.Vector3(); // reused every frame for camera direction
 
 function animate() {
@@ -2932,7 +2933,12 @@ function animate() {
     renderer.render(bgScene, bgCamera);
   }
   renderer.render(scene, camera);
-  if (hasAgents) css2DRenderer.render(scene, camera); // skip CSS2D pass when no labels
+  // Throttle CSS2D pass to ~30fps — labels don't need full framerate
+  // Saves expensive style.transform + recalculate style overhead
+  if (hasAgents && now - _lastCss2dRender > 33) {
+    css2DRenderer.render(scene, camera);
+    _lastCss2dRender = now;
+  }
 
   // FPS counter
   fpsFrames++;

@@ -232,23 +232,35 @@ function processEvent(event) {
 
   switch (phase) {
     case 'session_start': {
-      // Allow multiple concurrent sessions — each gets its own orb
-      // Reset this session if it already exists (re-opened), but preserve stats
+      // If session already exists and is active, just update metadata — don't nuke it.
+      // Re-sent session_start happens from model detection, hook retries, etc.
       if (sessions.has(sid)) {
-        const old = sessions.get(sid);
-        carryOverStats.toolCalls += old.stats.toolCalls || 0;
-        carryOverStats.filesAccessed += old.stats.filesAccessed || 0;
-        carryOverStats.estimatedTokens += old.stats.estimatedTokens || 0;
-        carryOverStats.linesAdded += old.stats.linesAdded || 0;
-        carryOverStats.linesRemoved += old.stats.linesRemoved || 0;
-        carryOverStats.turns += old.stats.turns || 0;
-        carryOverStats.errors += old.stats.errors || 0;
+        const existing = sessions.get(sid);
+        if (existing.session.status === 'active') {
+          // Update model/source if provided, preserve agents + stats
+          if (model) {
+            existing.session.model = model;
+            const main = existing.agents.find(a => a.type === 'main');
+            if (main) main.model = model;
+          }
+          if (source && existing.session.source === 'unknown') existing.session.source = source;
+          existing.lastActivity = Date.now();
+          break;
+        }
+        // Session was ended — carry over stats and recreate
+        carryOverStats.toolCalls += existing.stats.toolCalls || 0;
+        carryOverStats.filesAccessed += existing.stats.filesAccessed || 0;
+        carryOverStats.estimatedTokens += existing.stats.estimatedTokens || 0;
+        carryOverStats.linesAdded += existing.stats.linesAdded || 0;
+        carryOverStats.linesRemoved += existing.stats.linesRemoved || 0;
+        carryOverStats.turns += existing.stats.turns || 0;
+        carryOverStats.errors += existing.stats.errors || 0;
+        for (const a of existing.agents) { if (a.type === 'main') usedNames.delete(a.name); }
         sessions.delete(sid);
       }
       const ss = getOrCreateSession(sid, timestamp, source);
       const mainAgent = getOrCreateMainAgent(ss);
-      // Capture model from session_start (e.g. OpenCode sends it here)
-      if (model && !mainAgent.model) {
+      if (model) {
         mainAgent.model = model;
         ss.session.model = model;
       }

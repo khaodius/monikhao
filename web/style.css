@@ -592,8 +592,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 /* ─── CSS2D Agent Labels (3D scene) ──────────────────────────────────────── */
 .agent-label-3d {
-  background: rgba(20, 5, 40, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(20, 5, 40, 0.9);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 3px 8px;
@@ -606,6 +605,8 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   align-items: center;
   gap: 6px;
   text-shadow: 0 0 6px var(--accent-glow);
+  will-change: transform;
+  contain: layout style;
 }
 
 .agent-label-3d.completed {
@@ -635,8 +636,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 /* ─── CSS2D Thought Bubbles ──────────────────────────────────────────────── */
 .thought-bubble {
-  background: rgba(20, 5, 40, 0.85);
-  backdrop-filter: blur(8px);
+  background: rgba(20, 5, 40, 0.92);
   border: 1px solid var(--border-glow);
   border-left: 3px solid var(--accent);
   border-radius: 8px;
@@ -650,6 +650,8 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   box-shadow: 0 2px 16px var(--accent-15);
   animation: thoughtPop 0.3s ease;
   transition: opacity 0.5s;
+  will-change: transform, opacity;
+  contain: layout style;
 }
 
 .thought-bubble.fading {
@@ -736,8 +738,7 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 
 /* ─── CSS2D Station Panels ───────────────────────────────────────────────── */
 .station-panel {
-  background: rgba(20, 5, 40, 0.7);
-  backdrop-filter: blur(6px);
+  background: rgba(20, 5, 40, 0.88);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -745,6 +746,8 @@ summary.config-group-title::-webkit-details-marker { display: none; }
   color: var(--text-dim);
   width: 130px;
   pointer-events: none;
+  will-change: transform;
+  contain: layout style;
 }
 
 .station-panel .station-tool {
