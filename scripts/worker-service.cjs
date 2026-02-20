@@ -18,6 +18,7 @@ const { resolve, join } = require('path');
 const PLUGIN_ROOT = process.env.MONIKHAO_ROOT || resolve(__dirname, '..');
 const WEB_DIR = join(PLUGIN_ROOT, 'web');
 const CONFIG_PATH = join(PLUGIN_ROOT, 'config.json');
+const PRESETS_PATH = join(PLUGIN_ROOT, 'presets.json');
 
 const PORT = parseInt(process.env.AGENT_MONITOR_PORT) || 37800;
 const HOST = '127.0.0.1';
@@ -25,6 +26,11 @@ const HOST = '127.0.0.1';
 // ─── Load Config ───────────────────────────────────────────────────────────────
 let config = {};
 try { config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')); } catch { config = { port: PORT, host: HOST }; }
+
+// ─── Load Presets ──────────────────────────────────────────────────────────────
+let presets = {};
+try { presets = JSON.parse(readFileSync(PRESETS_PATH, 'utf8')); } catch { presets = {}; }
+function savePresets() { try { writeFileSync(PRESETS_PATH, JSON.stringify(presets, null, 2) + '\n'); } catch {} }
 
 // ─── Random Agent Names + Colors ─────────────────────────────────────────────
 const AGENT_NAMES = [
@@ -565,11 +571,62 @@ app.get('/api/export', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify({ exportedAt: new Date().toISOString(), sessions: state.sessions, agents: state.agents, stats: state.stats, history: sessionHistory, timeline: state.timeline }, null, 2));
 });
+app.get('/api/export/csv', (req, res) => {
+  const state = getPublicState();
+  const allSessions = [...sessionHistory, ...(state.sessions || []).map(s => {
+    const ss = sessions.get(s.id);
+    return ss ? { id: s.id, source: s.source, model: s.model, startedAt: s.startedAt, endedAt: s.endedAt || '', stats: ss.stats, agentCount: ss.agents.length } : null;
+  }).filter(Boolean)];
+
+  const rows = [['Session ID','Source','Model','Started','Ended','Duration (s)','Tool Calls','Errors','Turns','Agents','Tokens','Lines Added','Lines Removed']];
+  for (const h of allSessions) {
+    const s = h.stats || {};
+    const dur = h.startedAt && h.endedAt ? Math.round((h.endedAt - h.startedAt) / 1000) : '';
+    rows.push([
+      h.id || '', h.source || '', h.model || '',
+      h.startedAt ? new Date(h.startedAt).toISOString() : '',
+      h.endedAt ? new Date(h.endedAt).toISOString() : '',
+      dur, s.toolCalls || 0, s.errors || 0, s.turns || 0,
+      h.agentCount || 0, s.estimatedTokens || 0, s.linesAdded || 0, s.linesRemoved || 0
+    ]);
+  }
+  const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+  res.setHeader('Content-Disposition', 'attachment; filename=monikhao-sessions.csv');
+  res.setHeader('Content-Type', 'text/csv');
+  res.send(csv);
+});
 app.post('/api/config', (req, res) => {
   deepMerge(config, req.body);
   try { writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n'); } catch {}
   broadcast({ type: 'config_update', config });
   res.json({ status: 'ok', config });
+});
+
+// ─── Config Presets ──────────────────────────────────────────────────────────
+app.get('/api/presets', (req, res) => res.json(presets));
+app.post('/api/presets/:name', (req, res) => {
+  const name = req.params.name;
+  if (!name || name.length > 50) return res.status(400).json({ error: 'invalid name' });
+  // Save current config (excluding server-only keys) as a preset
+  const { port, host, autoOpenBrowser, maxTimelineEvents, maxFileNodes, staleTimeout, ...visual } = config;
+  presets[name] = visual;
+  savePresets();
+  res.json({ status: 'ok', preset: name });
+});
+app.post('/api/presets/:name/load', (req, res) => {
+  const name = req.params.name;
+  if (!presets[name]) return res.status(404).json({ error: 'preset not found' });
+  deepMerge(config, presets[name]);
+  try { writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n'); } catch {}
+  broadcast({ type: 'config_update', config });
+  res.json({ status: 'ok', config });
+});
+app.delete('/api/presets/:name', (req, res) => {
+  const name = req.params.name;
+  if (!presets[name]) return res.status(404).json({ error: 'preset not found' });
+  delete presets[name];
+  savePresets();
+  res.json({ status: 'ok' });
 });
 
 function deepMerge(target, source) {

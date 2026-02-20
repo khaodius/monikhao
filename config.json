@@ -32,7 +32,7 @@
     "particleLifetime": 120000,
     "orbitSpeed": 0.0005,
     "trailLength": 15,
-    "maxFps": 117
+    "maxFps": 144
   },
   "display": {
     "showGrid": false,
@@ -40,15 +40,16 @@
     "showStationPanels": true,
     "autoFocus": false,
     "asciiRain": true,
-    "asciiRainDensity": 1,
-    "bgType": "waves",
-    "waveSymbols": "blocks",
+    "asciiRainDensity": 0.9,
+    "bgType": "flow",
+    "waveSymbols": "geometric",
     "bgOpacity": 100,
     "wireThickness": 2,
     "wireDistance": 1.8,
     "theme": "custom",
-    "customColor": "#035e8c",
-    "showFps": true
+    "customColor": "#8f0000",
+    "showFps": true,
+    "cellSize": 8
   },
   "features": {
     "voiceInput": false,

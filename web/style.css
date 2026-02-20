@@ -618,31 +618,27 @@ summary.config-group-title::-webkit-details-marker { display: none; }
 #timeline-bar {
   position: fixed;
   bottom: 0; left: 0; right: 380px;
-  height: 36px;
+  height: 8px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   z-index: 100;
-  display: flex;
-  align-items: center;
   padding: 0 14px;
-  gap: 2px;
   transition: right 0.3s ease;
+  overflow: hidden;
 }
 
 #timeline-bar.expanded { right: 0; }
 
-.timeline-tick {
-  width: 3px;
-  background: var(--accent);
-  border-radius: 1px;
-  min-height: 2px;
-  max-height: 22px;
-  opacity: 0.5;
-  box-shadow: 0 0 4px var(--accent-glow);
-  transition: opacity 0.2s;
+.timeline-block {
+  position: absolute;
+  top: 1px;
+  height: 6px;
+  border-radius: 2px;
+  opacity: 0.6;
+  min-width: 2px;
+  transition: opacity 0.15s;
 }
-
-.timeline-tick:hover { opacity: 1; }
+.timeline-block:hover { opacity: 1; box-shadow: 0 0 6px currentColor; }
 
 /* ─── Speech Bubbles ──────────────────────────────────────────────────────── */
 .speech-bubble {

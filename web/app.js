@@ -47,10 +47,12 @@ const FOCUS_PAN_SPEED = 2.5; // ~0.4s to complete a pan
 // Context menu
 let contextMenuAgentId = null;
 
-// FPS counter
-let fpsFrames = 0;
-let fpsLastTime = performance.now();
+// FPS counter — rolling average over last 30 frames
 let fpsEl = null;
+const fpsSamples = new Float64Array(30);
+let fpsSampleIdx = 0;
+let fpsLastFrame = performance.now();
+let fpsUpdateTime = 0;
 
 // ─── Model Pricing ($ per million tokens) ────────────────────────────────────
 const MODEL_PRICING = {
@@ -262,6 +264,54 @@ function playCompletionChord() {
     osc.start(now);
     osc.stop(now + 1.3);
   });
+}
+
+// Descending minor tone on error
+function playErrorTone() {
+  if (!audioCtx || !audioGain) return;
+  if (!(appState.config?.features?.ambientAudio ?? false)) return;
+
+  const notes = [494, 440, 370, 330]; // B4→A4→F#4→E4 — descending
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    const env = audioCtx.createGain();
+    env.gain.value = 0;
+    const t = audioCtx.currentTime + i * 0.08;
+    env.gain.linearRampToValueAtTime(0.04, t + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(env);
+    env.connect(audioGain);
+    osc.start(t);
+    osc.stop(t + 0.35);
+  });
+}
+
+// Gentle repeating ping when awaiting permission
+let _awaitToneInterval = null;
+function startAwaitTone() {
+  if (_awaitToneInterval) return;
+  _awaitToneInterval = setInterval(() => {
+    if (!audioCtx || !audioGain) return;
+    if (!(appState.config?.features?.ambientAudio ?? false)) return;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 880; // A5 — attention ping
+    const env = audioCtx.createGain();
+    env.gain.value = 0;
+    const t = audioCtx.currentTime;
+    env.gain.linearRampToValueAtTime(0.03, t + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    osc.connect(env);
+    env.connect(audioGain);
+    osc.start(t);
+    osc.stop(t + 0.6);
+  }, 3000);
+}
+
+function stopAwaitTone() {
+  if (_awaitToneInterval) { clearInterval(_awaitToneInterval); _awaitToneInterval = null; }
 }
 
 // ─── GPU Background Shader System ────────────────────────────────────────────
@@ -2975,13 +3025,19 @@ function animate() {
     _lastCss2dRender = now;
   }
 
-  // FPS counter
-  fpsFrames++;
-  if (now - fpsLastTime >= 1000) {
+  // FPS counter — rolling average, update display 4x/sec
+  fpsSamples[fpsSampleIdx] = now - fpsLastFrame;
+  fpsSampleIdx = (fpsSampleIdx + 1) % fpsSamples.length;
+  fpsLastFrame = now;
+  if (now - fpsUpdateTime > 250) {
+    fpsUpdateTime = now;
+    let sum = 0, count = 0;
+    for (let i = 0; i < fpsSamples.length; i++) {
+      if (fpsSamples[i] > 0) { sum += fpsSamples[i]; count++; }
+    }
+    const avgMs = count > 0 ? sum / count : 16.67;
     if (!fpsEl) fpsEl = document.getElementById('fps-counter');
-    if (fpsEl) fpsEl.textContent = fpsFrames;
-    fpsFrames = 0;
-    fpsLastTime = now;
+    if (fpsEl) fpsEl.textContent = Math.round(1000 / avgMs);
   }
 }
 
@@ -3090,6 +3146,16 @@ function updateUI() {
       tbEl.innerHTML = '';
     }
   }
+
+  // Await tone: ping when any agent is waiting for permission
+  const nowCheck = Date.now();
+  const anyAwaiting = agents.some(a =>
+    a.status === 'active' && (a.toolCalls || []).some(tc =>
+      tc.status === 'executing' && tc.startedAt && (nowCheck - tc.startedAt) > 3000
+    )
+  );
+  if (anyAwaiting) startAwaitTone();
+  else stopAwaitTone();
 }
 
 // Persistent session display order — survives re-renders
@@ -3504,23 +3570,43 @@ function replayEventsIntoAgents() {
 function updateTimelineBar() {
   const bar = document.getElementById('timeline-bar');
   const events = appState.timeline;
-  if (events.length === 0) return;
+  if (events.length === 0) { bar.innerHTML = ''; return; }
 
-  const bucketCount = Math.min(events.length, 120);
   const startTime = events[0]?.timestamp || Date.now();
   const endTime = events[events.length - 1]?.timestamp || Date.now();
   const range = Math.max(endTime - startTime, 1);
+  const barWidth = bar.clientWidth - 28; // minus padding
+  if (barWidth <= 0) return;
 
-  const buckets = new Array(bucketCount).fill(0);
+  // Build paired tool_start → tool_end blocks
+  const blocks = [];
+  const pending = new Map(); // toolCallId → start event
   for (const evt of events) {
-    const idx = Math.min(Math.floor(((evt.timestamp - startTime) / range) * bucketCount), bucketCount - 1);
-    buckets[idx]++;
+    if (evt.type === 'tool_start' && evt.data?.toolCallId) {
+      pending.set(evt.data.toolCallId, evt);
+    } else if (evt.type === 'tool_end') {
+      // Find matching start by tool name (best effort)
+      let matched = null;
+      for (const [id, start] of pending) {
+        if (start.data?.tool === evt.data?.tool) { matched = id; break; }
+      }
+      if (matched) {
+        const start = pending.get(matched);
+        pending.delete(matched);
+        const tool = start.data?.tool || 'unknown';
+        const color = getToolColor(tool);
+        const x = ((start.timestamp - startTime) / range) * barWidth;
+        const w = Math.max(2, ((evt.timestamp - start.timestamp) / range) * barWidth);
+        const isError = !!(evt.data?.isError);
+        blocks.push({ x, w, color, tool, isError });
+      }
+    }
   }
 
-  const maxCount = Math.max(...buckets, 1);
-  bar.innerHTML = buckets.map(count => {
-    const h = Math.max(2, (count / maxCount) * 20);
-    return `<div class="timeline-tick" style="height:${h}px"></div>`;
+  // Render blocks as absolute-positioned divs
+  bar.innerHTML = blocks.map(b => {
+    const borderColor = b.isError ? 'var(--error)' : b.color;
+    return `<div class="timeline-block" style="left:${b.x + 14}px;width:${b.w}px;background:${b.color};${b.isError ? 'border:1px solid var(--error);' : ''}" title="${escHtml(b.tool)}"></div>`;
   }).join('');
 }
 
@@ -3719,8 +3805,9 @@ function handleEvent(event) {
     // Already handled by addEventToFeed at top of handleEvent
   }
 
-  // Error flash: briefly turn the orb red
+  // Error flash: briefly turn the orb red + audio cue
   if (event.phase === 'post' && event.isError) {
+    playErrorTone();
     const sid = event.session_id;
     let errorAgent = null;
     if (sid) {
@@ -4035,7 +4122,7 @@ window.switchTab = function(tabName) {
 
   if (tabName === 'agents') updateAgentsTab();
   if (tabName === 'history') updateHistoryTab();
-  if (tabName === 'config') syncConfigUI();
+  if (tabName === 'config') { syncConfigUI(); refreshPresets(); }
 };
 
 function updateHistoryTab() {
@@ -4070,6 +4157,49 @@ function updateHistoryTab() {
 
 window.exportSession = function() {
   window.open('/api/export', '_blank');
+};
+
+window.exportCSV = function() {
+  window.open('/api/export/csv', '_blank');
+};
+
+// ─── Config Presets ──────────────────────────────────────────────────────────
+async function refreshPresets() {
+  try {
+    const res = await fetch('/api/presets');
+    const data = await res.json();
+    const sel = document.getElementById('preset-select');
+    if (!sel) return;
+    const names = Object.keys(data);
+    sel.innerHTML = '<option value="">Select preset...</option>' +
+      names.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+  } catch {}
+}
+
+window.savePreset = async function() {
+  const input = document.getElementById('preset-name');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  await fetch('/api/presets/' + encodeURIComponent(name), { method: 'POST' });
+  input.value = '';
+  refreshPresets();
+};
+
+window.loadPreset = async function() {
+  const sel = document.getElementById('preset-select');
+  const name = sel?.value;
+  if (!name) return;
+  const res = await fetch('/api/presets/' + encodeURIComponent(name) + '/load', { method: 'POST' });
+  const data = await res.json();
+  if (data.config) { appState.config = data.config; syncConfigUI(); }
+};
+
+window.deletePreset = async function() {
+  const sel = document.getElementById('preset-select');
+  const name = sel?.value;
+  if (!name) return;
+  await fetch('/api/presets/' + encodeURIComponent(name), { method: 'DELETE' });
+  refreshPresets();
 };
 
 window.updateConfig = function(path, value) {

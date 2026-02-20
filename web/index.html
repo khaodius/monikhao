@@ -104,13 +104,28 @@
     <div class="panel-content" id="tab-history" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="color:var(--text-dim);font-size:calc(12px * var(--font-scale));text-transform:uppercase;letter-spacing:1px">Session History</span>
-        <button class="export-btn" onclick="exportSession()">Export</button>
+        <button class="export-btn" onclick="exportSession()">JSON</button>
+        <button class="export-btn" onclick="exportCSV()">CSV</button>
       </div>
       <div id="history-list"></div>
     </div>
 
     <!-- Config Tab -->
     <div class="panel-content" id="tab-config" style="display:none">
+      <details class="config-group" open>
+        <summary class="config-group-title">Presets</summary>
+        <div class="config-group-body">
+          <div class="config-row" style="gap:6px">
+            <select id="preset-select" style="flex:1"><option value="">Select preset...</option></select>
+            <button class="export-btn" onclick="loadPreset()">Load</button>
+            <button class="export-btn" onclick="deletePreset()" style="color:var(--error)">Del</button>
+          </div>
+          <div class="config-row" style="gap:6px">
+            <input type="text" id="preset-name" placeholder="New preset name..." style="flex:1;padding:4px 8px;background:var(--accent-08);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:calc(13px * var(--font-scale));outline:none">
+            <button class="export-btn" onclick="savePreset()">Save</button>
+          </div>
+        </div>
+      </details>
       <details class="config-group" open>
         <summary class="config-group-title">Theme</summary>
         <div class="config-group-body">
