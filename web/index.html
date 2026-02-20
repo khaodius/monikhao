@@ -89,11 +89,25 @@
   <div id="side-panel">
     <div class="panel-tabs">
       <div class="panel-tab active" data-tab="agents" onclick="switchTab('agents')">Agents</div>
+      <div class="panel-tab" data-tab="history" onclick="switchTab('history')">History</div>
       <div class="panel-tab" data-tab="config" onclick="switchTab('config')">Config</div>
     </div>
 
     <!-- Agents Tab (includes inline events per agent) -->
+    <div class="feed-search-wrap">
+      <input type="text" id="feed-search" placeholder="Filter events..." autocomplete="off" spellcheck="false">
+      <div id="tool-breakdown"></div>
+    </div>
     <div class="panel-content" id="tab-agents"></div>
+
+    <!-- History Tab -->
+    <div class="panel-content" id="tab-history" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="color:var(--text-dim);font-size:calc(12px * var(--font-scale));text-transform:uppercase;letter-spacing:1px">Session History</span>
+        <button class="export-btn" onclick="exportSession()">Export</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
 
     <!-- Config Tab -->
     <div class="panel-content" id="tab-config" style="display:none">

@@ -175,8 +175,14 @@ function initAudio() {
   }
 }
 
+let _audioTargetVol = 0;
+
 function setAudioVolume(vol) {
   if (!audioGain || !audioCtx) return;
+  if (vol === _audioTargetVol) return; // Skip if already at target
+  _audioTargetVol = vol;
+  audioGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  audioGain.gain.setValueAtTime(audioGain.gain.value, audioCtx.currentTime);
   audioGain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.3);
 }
 
@@ -1728,6 +1734,19 @@ function updateAgentMesh(agentId) {
   const nameSpan = labelDiv.querySelector('.agent-label-name');
   if (nameSpan) nameSpan.textContent = agent.name || 'Agent';
 
+  // Awaiting permission indicator on 3D label
+  const now = Date.now();
+  const hasPending = (agent.toolCalls || []).some(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+  let awaitTag = labelDiv.querySelector('.label-await');
+  if (hasPending && !awaitTag) {
+    awaitTag = document.createElement('span');
+    awaitTag.className = 'label-await';
+    awaitTag.textContent = 'AWAITING';
+    labelDiv.appendChild(awaitTag);
+  } else if (!hasPending && awaitTag) {
+    awaitTag.remove();
+  }
+
   // Label visibility
   const showLabels = appState.config?.display?.showLabels ?? true;
   meshData.label.visible = showLabels && !meshData.hidden;
@@ -2848,7 +2867,20 @@ function updateContextAnimations(time, dt, speed) {
       data.ring.material.color.copy(agentColor);
     }
 
-    // Thinking log disabled — content now in agent panel
+    // Permission-awaiting detection: tool executing > 3s → amber pulse on orb
+    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (nowMs - tc.startedAt) > 3000);
+    if (pending) {
+      const awaitPulse = 0.5 + 0.5 * Math.sin(time * 4); // faster pulse
+      data.sphere.material.emissive.setRGB(1.0, 0.75, 0.1); // amber
+      data.sphere.material.emissiveIntensity = 0.4 + awaitPulse * 0.6;
+      data.ring.material.color.setRGB(1.0, 0.75, 0.1);
+      data.ring.material.opacity = 0.15 + awaitPulse * 0.2;
+      data.glowShell.material.opacity = 0.1 + awaitPulse * 0.15;
+    } else if (!data.dissolving) {
+      // Restore normal color when no longer awaiting
+      const agentColor = hexToThreeColor(getAgentColor(agent));
+      data.sphere.material.emissive.copy(agentColor);
+    }
   }
 }
 
@@ -2894,16 +2926,19 @@ function animate() {
   const now = performance.now();
   const maxFps = appState.config?.animation?.maxFps ?? 0;
   const hasAgents = agentMeshes.size > 0;
-  // Idle FPS cap: 30fps when no agents, saves CPU when dashboard is waiting
-  const effectiveFps = hasAgents ? maxFps : Math.max(maxFps, 30);
+  // Idle: always 30fps when no agents regardless of cap setting
+  // Active: respect user's cap, 0 = uncapped
+  const effectiveFps = hasAgents ? maxFps : 30;
   if (effectiveFps > 0) {
     const interval = 1000 / effectiveFps;
     if (now - lastFrameTime < interval) return;
-    // Snap to ideal cadence to prevent drift — actual FPS stays accurate to slider
+    // Snap to ideal cadence so fractional rAF alignment averages to target FPS
     lastFrameTime = now - ((now - lastFrameTime) % interval);
   }
 
-  const dt = clock.getDelta();
+  // Clamp dt to prevent physics explosions after heavy frames or tab switches
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.05); // cap at 50ms (20fps floor for physics)
   const anim = appState.config?.animation;
   const disp = appState.config?.display;
   const speed = anim?.speed || 1;
@@ -3039,6 +3074,22 @@ function updateUI() {
 
   const empty = document.getElementById('empty-state');
   if (empty) empty.style.display = (agents.length === 0) ? 'block' : 'none';
+
+  // Tool breakdown bar
+  const breakdown = stats.toolBreakdown;
+  const tbEl = document.getElementById('tool-breakdown');
+  if (tbEl && breakdown) {
+    const entries = Object.entries(breakdown).sort((a, b) => b[1].calls - a[1].calls);
+    if (entries.length > 0) {
+      tbEl.innerHTML = entries.map(([tool, d]) => {
+        const c = getToolColor(tool);
+        const errStr = d.errors > 0 ? ` <span class="tb-err">${d.errors}err</span>` : '';
+        return `<span class="tb-item" style="color:${c}">${escHtml(tool)} <span class="tb-count">${d.calls}</span>${errStr}</span>`;
+      }).join('');
+    } else {
+      tbEl.innerHTML = '';
+    }
+  }
 }
 
 // Persistent session display order — survives re-renders
@@ -3072,20 +3123,38 @@ function updateAgentsTab() {
   const structureChanged = agentKey !== _renderedAgentKey;
 
   if (!structureChanged) {
-    // Fast path: just update stats text for each agent, no DOM rebuild
+    // Fast path: just update stats text + awaiting badge for each agent, no DOM rebuild
+    const now = Date.now();
     for (const agent of appState.agents) {
       const card = container.querySelector(`[data-agent-id="${CSS.escape(agent.id)}"]`);
       if (!card) continue;
       const statsEl = card.querySelector('.agent-stats');
       if (statsEl) {
         const lastTool = agent.toolCalls?.[agent.toolCalls.length - 1];
-        statsEl.textContent = (agent.toolCallCount || 0) + ' tool calls'
-          + (lastTool ? ' | Last: ' + lastTool.tool : '');
+        const errorCount = (agent.toolCalls || []).filter(tc => tc.status === 'error').length;
+        let statsHtml = (agent.toolCallCount || 0) + ' tool calls';
+        if (errorCount > 0) statsHtml += ' | <span class="agent-error-badge">' + errorCount + ' error' + (errorCount > 1 ? 's' : '') + '</span>';
+        if (lastTool) statsHtml += ' | Last: ' + escHtml(lastTool.tool);
+        statsEl.innerHTML = statsHtml;
       }
       // Update dot status class
       const dot = card.querySelector('.agent-dot');
       if (dot) {
         dot.className = 'agent-dot ' + agent.status;
+      }
+      // Update awaiting badge
+      const header = card.querySelector('.agent-header');
+      if (header) {
+        const existing = header.querySelector('.agent-awaiting');
+        const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+        if (pending && !existing) {
+          const badge = document.createElement('div');
+          badge.className = 'agent-awaiting';
+          badge.textContent = 'Awaiting';
+          header.querySelector('.agent-name').after(badge);
+        } else if (!pending && existing) {
+          existing.remove();
+        }
       }
     }
     return;
@@ -3104,7 +3173,27 @@ function updateAgentsTab() {
         childMap.get(agent.parentId).push(agent);
       }
     }
+    // Respect user drag order if available
+    const sid = agents[0]?.sessionId;
+    if (sid && _agentOrder.has(sid)) {
+      const order = _agentOrder.get(sid);
+      roots.sort((a, b) => {
+        const ai = order.indexOf(a.id);
+        const bi = order.indexOf(b.id);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+    }
     return { roots, childMap };
+  }
+
+  function getAwaitingBadge(agent) {
+    const now = Date.now();
+    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+    if (!pending) return '';
+    return `<div class="agent-awaiting">Awaiting</div>`;
   }
 
   function renderAgent(agent, childMap, depth, isLast) {
@@ -3115,18 +3204,24 @@ function updateAgentsTab() {
     const treeLine = depth > 0
       ? `<span class="tree-branch">${isLast ? '\u2514' : '\u251C'}\u2500 </span>`
       : '';
+    const hasChildren = children.length > 0;
 
-    let html = `
-      <div class="agent-item agent-depth-${depth}" style="${indent}" data-agent-id="${escHtml(agent.id)}">
+    let html = '';
+    if (depth === 0 && hasChildren) html += `<div class="agent-tree-group" style="border-left: 2px solid ${color};">`;
+
+    html += `
+      <div class="agent-item agent-depth-${depth}" style="${indent}" data-agent-id="${escHtml(agent.id)}" draggable="${depth === 0 ? 'true' : 'false'}">
         <div class="agent-header">
           ${treeLine}
           <div class="agent-dot ${agent.status}" style="background:${color}; color:${color}"></div>
           <div class="agent-name">${escHtml(agent.name)}</div>
-          ${(agent.type !== 'main' || children.length > 0) ? `<div class="agent-type">${agent.subagentType || agent.type}</div>` : ''}
+          ${getAwaitingBadge(agent)}
+          ${(agent.type !== 'main' || hasChildren) ? `<div class="agent-type">${agent.subagentType || agent.type}</div>` : ''}
           ${agent.model ? `<div class="agent-model">${escHtml(formatModelName(agent.model))}</div>` : ''}
         </div>
         <div class="agent-stats" style="${depth > 0 ? 'padding-left:' + (depth * 20 + 20) + 'px;' : ''}">
           ${agent.toolCallCount || 0} tool calls
+          ${(() => { const ec = (agent.toolCalls || []).filter(tc => tc.status === 'error').length; return ec > 0 ? ` | <span class="agent-error-badge">${ec} error${ec > 1 ? 's' : ''}</span>` : ''; })()}
           ${lastTool ? ` | Last: ${escHtml(lastTool.tool)}` : ''}
         </div>
         <div class="agent-events" id="agent-events-${CSS.escape(agent.id)}"></div>
@@ -3137,6 +3232,8 @@ function updateAgentsTab() {
     for (let i = 0; i < children.length; i++) {
       html += renderAgent(children[i], childMap, depth + 1, i === children.length - 1);
     }
+
+    if (depth === 0 && hasChildren) html += '</div>';
     return html;
   }
 
@@ -3176,6 +3273,7 @@ function updateAgentsTab() {
 
   // Attach drag-and-drop listeners
   initSessionDrag(container);
+  initAgentDrag(container);
 }
 
 // ─── Drag & Drop for Session Groups ─────────────────────────────────────────
@@ -3218,6 +3316,66 @@ function initSessionDrag(container) {
       sessionOrder.splice(toIdx, 0, draggedSessionId);
 
       // Re-render
+      updateAgentsTab();
+    });
+  }
+}
+
+// ─── Agent-level Drag & Drop (reorder root agents within same session) ──────
+let _draggedAgentId = null;
+const _agentOrder = new Map(); // sessionId -> [agentId, ...]
+
+function initAgentDrag(container) {
+  const items = container.querySelectorAll('.agent-item.agent-depth-0[draggable="true"]');
+  for (const item of items) {
+    item.addEventListener('dragstart', (e) => {
+      e.stopPropagation(); // Don't trigger session-group drag
+      _draggedAgentId = item.dataset.agentId;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      _draggedAgentId = null;
+      container.querySelectorAll('.agent-item').forEach(i => i.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      if (!_draggedAgentId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (item.dataset.agentId !== _draggedAgentId) {
+        item.classList.add('drag-over');
+      }
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over');
+    });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      item.classList.remove('drag-over');
+      const targetId = item.dataset.agentId;
+      if (!_draggedAgentId || _draggedAgentId === targetId) return;
+
+      // Find which session these belong to and reorder
+      const dragAgent = appState.agents.find(a => a.id === _draggedAgentId);
+      const targetAgent = appState.agents.find(a => a.id === targetId);
+      if (!dragAgent || !targetAgent) return;
+      if (dragAgent.sessionId !== targetAgent.sessionId) return;
+
+      const sid = dragAgent.sessionId;
+      if (!_agentOrder.has(sid)) {
+        _agentOrder.set(sid, appState.agents.filter(a => a.sessionId === sid && !a.parentId).map(a => a.id));
+      }
+      const order = _agentOrder.get(sid);
+      const fromIdx = order.indexOf(_draggedAgentId);
+      const toIdx = order.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      order.splice(fromIdx, 1);
+      order.splice(toIdx, 0, _draggedAgentId);
+
+      _renderedAgentKey = ''; // Force full rebuild
       updateAgentsTab();
     });
   }
@@ -3299,19 +3457,21 @@ function addEventToFeed(event) {
   } else if (event.phase === 'pre') {
     detail = summarizeInputForUI(event.tool_name, event.tool_input) || '';
   } else if (event.phase === 'post') {
-    detail = 'completed';
+    detail = event.isError ? 'error' : 'completed';
   }
+
+  const isError = !!(event.isError);
 
   // Cache the event
   if (!agentEventCache.has(agentId)) agentEventCache.set(agentId, []);
   const cache = agentEventCache.get(agentId);
-  cache.push({ timestamp: event.timestamp, tool_name: event.tool_name, phase: event.phase, detail, color });
+  cache.push({ timestamp: event.timestamp, tool_name: event.tool_name, phase: event.phase, detail, color, isError });
   while (cache.length > MAX_AGENT_EVENTS) cache.shift();
 
   // Append to DOM if container exists
   const container = document.getElementById(`agent-events-${CSS.escape(agentId)}`);
   if (container) {
-    appendEventDOM(container, { timestamp: event.timestamp, tool_name: event.tool_name, phase: event.phase, detail, color });
+    appendEventDOM(container, { timestamp: event.timestamp, tool_name: event.tool_name, phase: event.phase, detail, color, isError });
     while (container.children.length > MAX_AGENT_EVENTS) container.removeChild(container.firstChild);
     container.scrollTop = container.scrollHeight;
   }
@@ -3321,9 +3481,10 @@ function appendEventDOM(container, ev) {
   const d = new Date(ev.timestamp);
   const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const div = document.createElement('div');
-  div.className = 'agent-event-item';
-  div.style.borderLeftColor = ev.color;
-  div.innerHTML = `<span class="ae-time">${escHtml(time)}</span><span class="ae-tool" style="color:${ev.color}">${escHtml(ev.tool_name || ev.phase)}</span><span class="ae-detail">${escHtml(ev.detail)}</span>`;
+  div.className = ev.isError ? 'agent-event-item agent-event-error' : 'agent-event-item';
+  div.style.borderLeftColor = ev.isError ? 'var(--error)' : ev.color;
+  const toolColor = ev.isError ? 'var(--error)' : ev.color;
+  div.innerHTML = `<span class="ae-time">${escHtml(time)}</span><span class="ae-tool" style="color:${toolColor}">${escHtml(ev.tool_name || ev.phase)}</span><span class="ae-detail">${escHtml(ev.detail)}</span>`;
   container.appendChild(div);
 }
 
@@ -3337,6 +3498,7 @@ function replayEventsIntoAgents() {
     }
     container.scrollTop = container.scrollHeight;
   }
+  if (_feedFilter) applyFeedFilter();
 }
 
 function updateTimelineBar() {
@@ -3557,6 +3719,39 @@ function handleEvent(event) {
     // Already handled by addEventToFeed at top of handleEvent
   }
 
+  // Error flash: briefly turn the orb red
+  if (event.phase === 'post' && event.isError) {
+    const sid = event.session_id;
+    let errorAgent = null;
+    if (sid) {
+      for (let i = appState.agents.length - 1; i >= 0; i--) {
+        if (appState.agents[i].sessionId === sid && appState.agents[i].status === 'active') {
+          errorAgent = appState.agents[i]; break;
+        }
+      }
+    }
+    if (!errorAgent) errorAgent = appState.agents[0];
+    if (errorAgent) {
+      const meshData = agentMeshes.get(errorAgent.id);
+      if (meshData) {
+        const red = new THREE.Color(0xff4060);
+        meshData.sphere.material.emissive.copy(red);
+        meshData.sphere.material.emissiveIntensity = 1.5;
+        meshData.glowShell.material.opacity = 0.4;
+        meshData.glowShell.scale.setScalar(1.3);
+        setTimeout(() => {
+          if (!meshData.sphere?.material) return;
+          const agent = appState.agents.find(a => a.id === errorAgent.id);
+          const origColor = hexToThreeColor(getAgentColor(agent || errorAgent));
+          meshData.sphere.material.emissive.copy(origColor);
+          meshData.sphere.material.emissiveIntensity = agent?.status === 'active' ? 0.5 : 0.1;
+          meshData.glowShell.material.opacity = 0.12;
+          meshData.glowShell.scale.setScalar(1.0);
+        }, 800);
+      }
+    }
+  }
+
   // Subagent completion burst
   if (event.phase === 'post' && event.tool_name === 'Task') {
     const completedSub = appState.agents.find(a => a.type === 'subagent' && a.status === 'completed');
@@ -3630,7 +3825,7 @@ function replayEventsFromTimeline() {
       detail = evt.data?.input || '';
     } else if (evt.type === 'tool_end') {
       label = toolName || 'tool';
-      detail = 'completed';
+      detail = evt.data?.isError ? 'error' : 'completed';
     } else if (evt.type === 'agent_spawn') {
       label = 'Task';
       detail = `[${evt.data?.subagentType || '?'}] ${evt.data?.name || ''}`;
@@ -3641,9 +3836,12 @@ function replayEventsFromTimeline() {
       continue;
     }
 
+    const isError = !!(evt.data?.isError);
+    const evColor = isError ? 'var(--error)' : color;
+
     if (!agentEventCache.has(agentId)) agentEventCache.set(agentId, []);
     const cache = agentEventCache.get(agentId);
-    cache.push({ timestamp: evt.timestamp, tool_name: label, phase: evt.type, detail, color });
+    cache.push({ timestamp: evt.timestamp, tool_name: label, phase: evt.type, detail, color: evColor, isError });
     while (cache.length > MAX_AGENT_EVENTS) cache.shift();
   }
 
@@ -3808,10 +4006,8 @@ function connectWebSocket() {
     document.getElementById('connection-banner').style.display = 'block';
     updateUI();
     clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(() => {
-      reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
-      connectWebSocket();
-    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
+    reconnectTimer = setTimeout(connectWebSocket, reconnectDelay);
   };
 
   ws.onerror = () => { ws.close(); };
@@ -3833,10 +4029,47 @@ window.switchTab = function(tabName) {
   document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
 
   document.getElementById('tab-agents').style.display = tabName === 'agents' ? '' : 'none';
+  document.getElementById('tab-history').style.display = tabName === 'history' ? '' : 'none';
   document.getElementById('tab-config').style.display = tabName === 'config' ? '' : 'none';
+  document.querySelector('.feed-search-wrap').style.display = tabName === 'agents' ? '' : 'none';
 
   if (tabName === 'agents') updateAgentsTab();
+  if (tabName === 'history') updateHistoryTab();
   if (tabName === 'config') syncConfigUI();
+};
+
+function updateHistoryTab() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  const history = appState.history || [];
+  if (history.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px">No completed sessions yet</div>';
+    return;
+  }
+  list.innerHTML = history.map(h => {
+    const start = new Date(h.startedAt);
+    const end = new Date(h.endedAt);
+    const dur = Math.floor((h.endedAt - h.startedAt) / 1000);
+    const durStr = dur >= 60 ? Math.floor(dur / 60) + 'm ' + (dur % 60) + 's' : dur + 's';
+    const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const s = h.stats || {};
+    return `<div class="history-item">
+      <div class="history-header">
+        <span class="history-date">${escHtml(dateStr)} ${escHtml(timeStr)}</span>
+        <span class="history-dur">${escHtml(durStr)}</span>
+        <span class="history-source">${escHtml(h.source || '?')}</span>
+      </div>
+      <div class="history-stats">
+        ${s.toolCalls || 0} tools | ${s.turns || 0} turns | ${s.errors ? '<span class="agent-error-badge">' + s.errors + ' err</span> | ' : ''}${h.agentCount || 1} agents
+      </div>
+      ${h.model ? `<div class="history-model">${escHtml(h.model)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+window.exportSession = function() {
+  window.open('/api/export', '_blank');
 };
 
 window.updateConfig = function(path, value) {
@@ -4171,8 +4404,93 @@ document.addEventListener('click', function audioUnlock() {
   document.removeEventListener('click', audioUnlock);
 }, { once: true });
 
+// Suspend/resume AudioContext on tab visibility to prevent glitches
+document.addEventListener('visibilitychange', () => {
+  if (!audioCtx) return;
+  if (document.hidden) {
+    audioCtx.suspend();
+  } else if (audioInitialized && (appState.config?.features?.ambientAudio ?? false)) {
+    audioCtx.resume();
+  }
+});
+
 // Rebuild font atlas once web fonts finish loading
 document.fonts.ready.then(() => {
   const preset = appState.config?.display?.waveSymbols || 'dots';
   createFontAtlas(preset);
+});
+
+// ─── Feed Search/Filter ──────────────────────────────────────────────────────
+let _feedFilter = '';
+document.getElementById('feed-search')?.addEventListener('input', function() {
+  _feedFilter = this.value.toLowerCase().trim();
+  applyFeedFilter();
+});
+
+function applyFeedFilter() {
+  const items = document.querySelectorAll('.agent-event-item');
+  if (!_feedFilter) {
+    for (const el of items) el.style.display = '';
+    return;
+  }
+  for (const el of items) {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(_feedFilter) ? '' : 'none';
+  }
+}
+
+// ─── Keyboard Shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  // Skip if user is typing in an input/textarea/select
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+  switch (e.key) {
+    case '1': switchTab('agents'); break;
+    case '2': switchTab('history'); break;
+    case '3': switchTab('config'); break;
+    case 'p': case 'P': togglePanel(); break;
+    case 'f': case 'F':
+      if (!e.ctrlKey && !e.metaKey) {
+        const c = appState.config?.display || {};
+        updateConfig('display.showFps', !c.showFps);
+        const el = document.getElementById('cfg-show-fps');
+        if (el) el.checked = !c.showFps;
+      }
+      break;
+    case 'g': case 'G':
+      if (!e.ctrlKey && !e.metaKey) {
+        const c = appState.config?.display || {};
+        updateConfig('display.showGrid', !c.showGrid);
+        const el = document.getElementById('cfg-show-grid');
+        if (el) el.checked = !c.showGrid;
+      }
+      break;
+    case 'l': case 'L':
+      if (!e.ctrlKey && !e.metaKey) {
+        const c = appState.config?.display || {};
+        updateConfig('display.showLabels', !c.showLabels);
+        const el = document.getElementById('cfg-show-labels');
+        if (el) el.checked = !c.showLabels;
+      }
+      break;
+    case 'r': case 'R':
+      if (!e.ctrlKey && !e.metaKey) {
+        const c = appState.config?.animation || {};
+        updateConfig('animation.autoRotate', !c.autoRotate);
+        const el = document.getElementById('cfg-auto-rotate');
+        if (el) el.checked = !c.autoRotate;
+      }
+      break;
+    case 'm': case 'M':
+      if (!e.ctrlKey && !e.metaKey) {
+        const c = appState.config?.features || {};
+        const newVal = !c.ambientAudio;
+        updateConfig('features.ambientAudio', newVal);
+        const el = document.getElementById('cfg-ambient-audio');
+        if (el) el.checked = newVal;
+        if (newVal) { initAudio(); setAudioVolume((c.audioVolume ?? 50) / 100); }
+        else { setAudioVolume(0); }
+      }
+      break;
+  }
 });

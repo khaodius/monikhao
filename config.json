@@ -32,13 +32,13 @@
     "particleLifetime": 120000,
     "orbitSpeed": 0.0005,
     "trailLength": 15,
-    "maxFps": 110
+    "maxFps": 117
   },
   "display": {
     "showGrid": false,
     "showLabels": true,
     "showStationPanels": true,
-    "autoFocus": true,
+    "autoFocus": false,
     "asciiRain": true,
     "asciiRainDensity": 1,
     "bgType": "waves",
@@ -47,7 +47,7 @@
     "wireThickness": 2,
     "wireDistance": 1.8,
     "theme": "custom",
-    "customColor": "#55038c",
+    "customColor": "#035e8c",
     "showFps": true
   },
   "features": {

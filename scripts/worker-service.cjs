@@ -80,6 +80,10 @@ let agentIdCounter = 0;
 // Carry-over stats from deleted sessions so counters don't reset
 const carryOverStats = { toolCalls: 0, filesAccessed: 0, estimatedTokens: 0, linesAdded: 0, linesRemoved: 0, turns: 0, errors: 0 };
 
+// Session history — summaries of completed sessions (kept in memory)
+const sessionHistory = []; // Array of { id, source, model, startedAt, endedAt, stats, agentCount }
+const MAX_HISTORY = 50;
+
 const STALE_TIMEOUT = config.staleTimeout || 5 * 60 * 1000; // 5 minutes with no activity = stale
 
 function createSessionState(sessionId, timestamp, source) {
@@ -92,6 +96,21 @@ function createSessionState(sessionId, timestamp, source) {
     pendingToolCalls: new Map(),
     lastActivity: timestamp
   };
+}
+
+function archiveSession(ss) {
+  if (ss.stats.toolCalls === 0) return; // skip empty sessions
+  sessionHistory.push({
+    id: ss.session.id,
+    source: ss.session.source,
+    model: ss.session.model,
+    startedAt: ss.session.startedAt,
+    endedAt: ss.session.endedAt || Date.now(),
+    stats: { ...ss.stats },
+    agentCount: ss.agents.length,
+    agentNames: ss.agents.map(a => a.name)
+  });
+  while (sessionHistory.length > MAX_HISTORY) sessionHistory.shift();
 }
 
 function getSession(sessionId) {
@@ -132,6 +151,7 @@ function pruneStaleAndEndedSessions() {
   for (const [id, s] of sessions) {
     // Remove ended sessions after 2 minutes, but preserve their stats
     if (s.session.status === 'ended' && s.session.endedAt && s.session.endedAt < endedCutoff) {
+      archiveSession(s);
       carryOverStats.toolCalls += s.stats.toolCalls || 0;
       carryOverStats.filesAccessed += s.stats.filesAccessed || 0;
       carryOverStats.estimatedTokens += s.stats.estimatedTokens || 0;
@@ -328,19 +348,21 @@ function processEvent(event) {
           }
           ss.pendingToolCalls.delete(tool_name);
         }
+        let isError = false;
         if (toolCall) {
           toolCall.completedAt = timestamp;
           toolCall.outputSummary = summarizeOutput(tool_name, tool_response);
-          const isError = detectError(tool_response);
+          isError = detectError(tool_response);
           toolCall.status = isError ? 'error' : 'completed';
           if (isError) ss.stats.errors++;
         }
+        event.isError = isError;
         ss.stats.estimatedTokens += estimateTokens(tool_response);
         if (tool_name === 'Task') {
           const lastSub = [...ss.agents].reverse().find(a => a.type === 'subagent' && a.status === 'active');
           if (lastSub) { lastSub.status = 'completed'; lastSub.completedAt = timestamp; }
         }
-        addTimelineEvent(ss, timestamp, 'tool_end', agent.id, { tool: tool_name, output: toolCall?.outputSummary || null });
+        addTimelineEvent(ss, timestamp, 'tool_end', agent.id, { tool: tool_name, output: toolCall?.outputSummary || null, isError });
       }
       break;
     }
@@ -488,6 +510,17 @@ function getPublicState() {
 
   allTimeline.sort((a, b) => a.timestamp - b.timestamp);
 
+  // Tool breakdown: count calls per tool name
+  const toolBreakdown = {};
+  for (const agent of allAgents) {
+    for (const tc of (agent.toolCalls || [])) {
+      const t = tc.tool || 'unknown';
+      if (!toolBreakdown[t]) toolBreakdown[t] = { calls: 0, errors: 0 };
+      toolBreakdown[t].calls++;
+      if (tc.status === 'error') toolBreakdown[t].errors++;
+    }
+  }
+
   return {
     sessions: sessionList,
     session: sessionList.find(s => s.status === 'active') || sessionList[sessionList.length - 1] || null,
@@ -507,9 +540,11 @@ function getPublicState() {
       errors: totalErrors,
       activeTools: totalActiveTools,
       sessionCount: sessions.size,
-      activeSessionCount: sessionList.filter(s => s.status === 'active').length
+      activeSessionCount: sessionList.filter(s => s.status === 'active').length,
+      toolBreakdown
     },
-    config
+    config,
+    history: sessionHistory.slice().reverse()
   };
 }
 
@@ -523,6 +558,13 @@ app.get('/style.css', (req, res) => res.type('text/css').sendFile(join(WEB_DIR, 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 app.get('/api/state', (req, res) => res.json(getPublicState()));
 app.get('/api/config', (req, res) => res.json(config));
+app.get('/api/history', (req, res) => res.json(sessionHistory.slice().reverse()));
+app.get('/api/export', (req, res) => {
+  const state = getPublicState();
+  res.setHeader('Content-Disposition', 'attachment; filename=monikhao-export.json');
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify({ exportedAt: new Date().toISOString(), sessions: state.sessions, agents: state.agents, stats: state.stats, history: sessionHistory, timeline: state.timeline }, null, 2));
+});
 app.post('/api/config', (req, res) => {
   deepMerge(config, req.body);
   try { writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n'); } catch {}
@@ -587,9 +629,14 @@ wss.on('connection', (ws) => {
   ws.on('error', () => clients.delete(ws));
 });
 
+const MAX_BUFFERED = 64 * 1024; // 64KB backpressure threshold
 function broadcast(data) {
   const msg = JSON.stringify(data);
-  for (const ws of clients) { if (ws.readyState === 1) ws.send(msg); }
+  for (const ws of clients) {
+    if (ws.readyState !== 1) continue;
+    if (ws.bufferedAmount > MAX_BUFFERED) continue; // skip slow clients
+    ws.send(msg);
+  }
 }
 
 server.listen(PORT, HOST, () => {
