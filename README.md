@@ -4,7 +4,7 @@ Real-time 3D dashboard that visualizes AI coding agent sessions using Three.js. 
 
 Agents appear as glowing orbs with orbital particles, subagent trees, heartbeat pulses, and proximity wires — all rendered in-browser with zero build step.
 
-![alpha](https://img.shields.io/badge/status-alpha%200.2.0-blueviolet)
+![alpha](https://img.shields.io/badge/status-alpha%200.2.2-blueviolet)
 
 ![Monikhao Dashboard](assets/monikhao.png)
 
@@ -63,19 +63,36 @@ Commands execute programmatically — no AI interpretation. In Claude Code they'
 
 ## Features
 
+### 3D Visualization
 - **Multi-platform** — Claude Code and OpenCode sessions side-by-side on one dashboard
 - **3D agents** — Glowing orbs with orbital particles, rings, and heartbeat breathing
-- **Live tool tracking** — Color-coded particles and thought bubbles per tool call
-- **Model detection** — Auto-detects model (Opus 4.6, Sonnet 4.5, GPT-5, etc.) with mid-session switching
-- **Cost estimation** — Real-time token counting with model-based pricing
 - **Subagent trees** — Child agents orbit parents with energy flow connections
-- **12 canvas backgrounds** — waves, plasma, fire, topology, fractal, snow, moire, and more
 - **3D parallax camera** — Background scrolls with camera rotation for depth
 - **Proximity wires** — Orbital particles draw fading connections when nearby
-- **Ambient audio** — Synthesized soundscape with tool-specific tones
+- **12 canvas backgrounds** — waves, plasma, fire, topology, fractal, snow, moire, and more
+
+### Live Tracking
+- **Tool tracking** — Color-coded particles and thought bubbles per tool call
+- **Tool breakdown** — Per-tool call counts with error tracking in the agents panel
+- **Error detection** — Red orb flash on errors, error-highlighted feed events, per-agent error badges
+- **Permission alerts** — Orb pulses amber with "AWAITING" label when the agent needs user approval
+- **Model detection** — Auto-detects model (Opus 4.6, Sonnet 4.5, GPT-5, etc.) with mid-session switching
+- **Cost estimation** — Real-time token counting with model-based pricing
+
+### Dashboard
+- **Session history** — History tab with completed session summaries (date, duration, model, stats)
+- **Session export** — Download full session data as formatted JSON
+- **Event search** — Filter events across all agents by text match
+- **Keyboard shortcuts** — `1`/`2`/`3` switch tabs, `P` panel, `F` fps, `G` grid, `L` labels, `R` rotate, `M` mute
+- **Draggable agents** — Reorder agent panels and session groups via drag and drop
 - **7 color themes** — purple, cyan, emerald, rose, amber, crimson, plus custom hex
+- **Ambient audio** — Synthesized soundscape with tool-specific tones
+
+### Reliability
 - **Smart disconnect** — `/kmoni-off` only kills the worker when no other platform is connected
 - **Session cleanup** — Stale and ghost sessions auto-pruned after 5 minutes
+- **WebSocket backpressure** — Slow clients skipped to prevent memory buildup
+- **FPS stability** — Physics dt clamping prevents cascade dips under heavy load
 
 ## Architecture
 
@@ -116,6 +133,20 @@ Edit `config.json` directly or use the dashboard Config tab (changes save automa
 
 **Background types:** waves, plasma, fire, topology, ripples, fractal, lissajous, snow, hyperbolic, spiral, moire, flow
 
+**Keyboard shortcuts:**
+
+| Key | Action |
+|-----|--------|
+| `1` | Agents tab |
+| `2` | History tab |
+| `3` | Config tab |
+| `P` | Toggle side panel |
+| `F` | Toggle FPS counter |
+| `G` | Toggle grid |
+| `L` | Toggle labels |
+| `R` | Toggle auto-rotate |
+| `M` | Toggle audio |
+
 **Environment variables:** `AGENT_MONITOR_PORT` (default 37800), `MONIKHAO_ROOT`, `MONIKHAO_PATH`
 
 ## API
@@ -126,6 +157,8 @@ Edit `config.json` directly or use the dashboard Config tab (changes save automa
 | GET | `/api/health` | Health check |
 | GET | `/api/state` | Full state (sessions, agents, timeline) |
 | GET | `/api/config` | Current configuration |
+| GET | `/api/history` | Completed session history |
+| GET | `/api/export` | Download session data as JSON |
 | GET | `/api/sessions/sources` | Active session sources |
 | POST | `/api/events` | Ingest event |
 | POST | `/api/config` | Update configuration |
