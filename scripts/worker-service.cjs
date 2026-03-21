@@ -12,13 +12,17 @@
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const { createServer } = require('http');
-const { readFileSync, writeFileSync, existsSync } = require('fs');
+const { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } = require('fs');
 const { resolve, join } = require('path');
+const { homedir } = require('os');
 
 const PLUGIN_ROOT = process.env.MONIKHAO_ROOT || resolve(__dirname, '..');
 const WEB_DIR = join(PLUGIN_ROOT, 'web');
 const CONFIG_PATH = join(PLUGIN_ROOT, 'config.json');
-const PRESETS_PATH = join(PLUGIN_ROOT, 'presets.json');
+const DATA_DIR = join(homedir(), '.monikhao');
+try { mkdirSync(DATA_DIR, { recursive: true }); } catch {}
+const PRESETS_PATH = join(DATA_DIR, 'presets.json');
+const PID_FILE = join(DATA_DIR, 'worker.pid');
 
 const PORT = parseInt(process.env.AGENT_MONITOR_PORT) || 37800;
 const HOST = '127.0.0.1';
@@ -193,6 +197,36 @@ function pruneStaleAndEndedSessions() {
 }
 setInterval(pruneStaleAndEndedSessions, 15000);
 
+// ─── Auto-Shutdown (idle worker cleanup) ─────────────────────────────────────
+// Shuts down when no active sessions AND no dashboard clients for IDLE_SHUTDOWN_DELAY.
+const IDLE_SHUTDOWN_DELAY = (config.idleShutdownSeconds || 60) * 1000;
+let idleShutdownTimer = null;
+
+function checkIdleShutdown() {
+  const hasActiveSessions = [...sessions.values()].some(s => s.session.status === 'active');
+  const hasDashboardClients = clients && clients.size > 0;
+
+  if (!hasActiveSessions && !hasDashboardClients) {
+    if (!idleShutdownTimer) {
+      idleShutdownTimer = setTimeout(() => {
+        // Re-check before actually exiting (session could have started during delay)
+        const stillActive = [...sessions.values()].some(s => s.session.status === 'active');
+        const stillHasClients = clients && clients.size > 0;
+        if (!stillActive && !stillHasClients) {
+          process.stderr.write(`[monikhao] No active sessions or clients for ${IDLE_SHUTDOWN_DELAY / 1000}s — shutting down.\n`);
+          cleanupAndExit(0);
+        } else {
+          idleShutdownTimer = null; // Reset — something reconnected
+        }
+      }, IDLE_SHUTDOWN_DELAY);
+    }
+  } else if (idleShutdownTimer) {
+    clearTimeout(idleShutdownTimer);
+    idleShutdownTimer = null;
+  }
+}
+setInterval(checkIdleShutdown, 10000);
+
 // ─── Agent Management (per-session) ──────────────────────────────────────────
 function getOrCreateMainAgent(ss) {
   let main = ss.agents.find(a => a.type === 'main');
@@ -314,7 +348,7 @@ function processEvent(event) {
         ss.session.model = model;
       }
 
-      if (tool_name === 'Task') {
+      if (tool_name === 'Task' || tool_name === 'Agent') {
         const sub = spawnSubagent(ss, mainAgent.id, tool_input);
         addTimelineEvent(ss, timestamp, 'agent_spawn', sub.id, { name: sub.name, subagentType: sub.subagentType, parentId: sub.parentId });
       }
@@ -364,7 +398,7 @@ function processEvent(event) {
         }
         event.isError = isError;
         ss.stats.estimatedTokens += estimateTokens(tool_response);
-        if (tool_name === 'Task') {
+        if (tool_name === 'Task' || tool_name === 'Agent') {
           const lastSub = [...ss.agents].reverse().find(a => a.type === 'subagent' && a.status === 'active');
           if (lastSub) { lastSub.status = 'completed'; lastSub.completedAt = timestamp; }
         }
@@ -437,6 +471,7 @@ function summarizeInput(toolName, input) {
     Grep: () => `/${input.pattern || '?'}/ in ${input.path || '.'}`,
     Glob: () => input.pattern || null,
     Task: () => `[${input.subagent_type || '?'}] ${input.description || ''}`,
+    Agent: () => `[${input.subagent_type || '?'}] ${input.description || ''}`,
     WebSearch: () => input.query || null,
     WebFetch: () => input.url || null,
     TodoWrite: () => `${(input.todos || []).length} items`
@@ -647,7 +682,7 @@ app.post('/api/voice-command', (req, res) => {
   }
   res.json({ status: 'ok' });
 });
-app.post('/api/admin/shutdown', (req, res) => { res.json({ status: 'shutting_down' }); process.exit(0); });
+app.post('/api/admin/shutdown', (req, res) => { res.json({ status: 'shutting_down' }); cleanupAndExit(0); });
 
 // Disconnect sessions from a specific source (claudecode/opencode) without killing the worker
 app.post('/api/admin/disconnect', (req, res) => {
@@ -681,6 +716,8 @@ const clients = new Set();
 
 wss.on('connection', (ws) => {
   clients.add(ws);
+  // Dashboard connected — cancel any pending idle shutdown
+  if (idleShutdownTimer) { clearTimeout(idleShutdownTimer); idleShutdownTimer = null; }
   ws.send(JSON.stringify({ type: 'init', state: getPublicState() }));
   ws.on('close', () => clients.delete(ws));
   ws.on('error', () => clients.delete(ws));
@@ -698,7 +735,15 @@ function broadcast(data) {
 
 server.listen(PORT, HOST, () => {
   process.stderr.write(`[monikhao] Worker running at http://${HOST}:${PORT}\n`);
+  try { writeFileSync(PID_FILE, JSON.stringify({ pid: process.pid, port: PORT, startedAt: new Date().toISOString() })); } catch {}
 });
 
-process.on('SIGTERM', () => { server.close(); process.exit(0); });
-process.on('SIGINT', () => { server.close(); process.exit(0); });
+// ─── Graceful Shutdown ────────────────────────────────────────────────────────
+function cleanupAndExit(code) {
+  try { unlinkSync(PID_FILE); } catch {}
+  try { server.close(); } catch {}
+  process.exit(code || 0);
+}
+process.on('SIGTERM', () => cleanupAndExit(0));
+process.on('SIGINT', () => cleanupAndExit(0));
+process.on('exit', () => { try { unlinkSync(PID_FILE); } catch {} });

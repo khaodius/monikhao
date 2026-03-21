@@ -189,9 +189,14 @@ function setAudioVolume(vol) {
 }
 
 // Play a brief tone on tool calls — pitch varies by tool type
+let _lastToolToneTime = 0;
+const TOOL_TONE_COOLDOWN = 5000; // Max one tool tone per 5 seconds
 function playToolTone(toolName) {
   if (!audioCtx || !audioGain) return;
   if (!(appState.config?.features?.ambientAudio ?? false)) return;
+  const now_ms = Date.now();
+  if (now_ms - _lastToolToneTime < TOOL_TONE_COOLDOWN) return;
+  _lastToolToneTime = now_ms;
 
   const toneMap = {
     Read: 440,     // A4 — intake
@@ -307,7 +312,7 @@ function startAwaitTone() {
     env.connect(audioGain);
     osc.start(t);
     osc.stop(t + 0.6);
-  }, 3000);
+  }, 10000);
 }
 
 function stopAwaitTone() {
@@ -1786,7 +1791,7 @@ function updateAgentMesh(agentId) {
 
   // Awaiting permission indicator on 3D label
   const now = Date.now();
-  const hasPending = (agent.toolCalls || []).some(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+  const hasPending = (agent.toolCalls || []).some(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 15000);
   let awaitTag = labelDiv.querySelector('.label-await');
   if (hasPending && !awaitTag) {
     awaitTag = document.createElement('span');
@@ -2918,7 +2923,7 @@ function updateContextAnimations(time, dt, speed) {
     }
 
     // Permission-awaiting detection: tool executing > 3s → amber pulse on orb
-    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (nowMs - tc.startedAt) > 3000);
+    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (nowMs - tc.startedAt) > 15000);
     if (pending) {
       const awaitPulse = 0.5 + 0.5 * Math.sin(time * 4); // faster pulse
       data.sphere.material.emissive.setRGB(1.0, 0.75, 0.1); // amber
@@ -3151,7 +3156,7 @@ function updateUI() {
   const nowCheck = Date.now();
   const anyAwaiting = agents.some(a =>
     a.status === 'active' && (a.toolCalls || []).some(tc =>
-      tc.status === 'executing' && tc.startedAt && (nowCheck - tc.startedAt) > 3000
+      tc.status === 'executing' && tc.startedAt && (nowCheck - tc.startedAt) > 15000
     )
   );
   if (anyAwaiting) startAwaitTone();
@@ -3212,7 +3217,7 @@ function updateAgentsTab() {
       const header = card.querySelector('.agent-header');
       if (header) {
         const existing = header.querySelector('.agent-awaiting');
-        const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+        const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 15000);
         if (pending && !existing) {
           const badge = document.createElement('div');
           badge.className = 'agent-awaiting';
@@ -3257,7 +3262,7 @@ function updateAgentsTab() {
 
   function getAwaitingBadge(agent) {
     const now = Date.now();
-    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 3000);
+    const pending = (agent.toolCalls || []).find(tc => tc.status === 'executing' && tc.startedAt && (now - tc.startedAt) > 15000);
     if (!pending) return '';
     return `<div class="agent-awaiting">Awaiting</div>`;
   }
@@ -3643,7 +3648,8 @@ function summarizeActivityForUI(toolName, input) {
     }
     case 'Grep': return `Searching /${(input.pattern || '').slice(0, 20)}/`;
     case 'Glob': return `Finding ${(input.pattern || '').slice(0, 30)}`;
-    case 'Task': return `Spawning ${input.description || input.subagent_type || 'agent'}`;
+    case 'Task':
+    case 'Agent': return `Spawning ${input.description || input.subagent_type || 'agent'}`;
     case 'WebSearch': return `Searching "${(input.query || '').slice(0, 25)}"`;
     case 'WebFetch': return 'Fetching page';
     case 'TodoWrite': return 'Updating todos';
@@ -3660,7 +3666,8 @@ function summarizeInputForUI(toolName, input) {
     case 'Bash': return (input.command || '').slice(0, 80);
     case 'Grep': return `/${input.pattern || ''}/ in ${input.path || '.'}`;
     case 'Glob': return input.pattern || '';
-    case 'Task': return `[${input.subagent_type || '?'}] ${input.description || ''}`;
+    case 'Task':
+    case 'Agent': return `[${input.subagent_type || '?'}] ${input.description || ''}`;
     case 'WebSearch': return input.query || '';
     default: return '';
   }
@@ -3768,7 +3775,7 @@ function handleEvent(event) {
     if (!activeAgent) activeAgent = appState.agents[0];
     if (activeAgent) {
       spawnParticle(activeAgent.id, event.tool_name);
-      if (event.tool_name === 'Task') {
+      if (event.tool_name === 'Task' || event.tool_name === 'Agent') {
         playSpawnChord();
       } else {
         playToolTone(event.tool_name);
@@ -3840,7 +3847,7 @@ function handleEvent(event) {
   }
 
   // Subagent completion burst
-  if (event.phase === 'post' && event.tool_name === 'Task') {
+  if (event.phase === 'post' && (event.tool_name === 'Task' || event.tool_name === 'Agent')) {
     const completedSub = appState.agents.find(a => a.type === 'subagent' && a.status === 'completed');
     if (completedSub) {
       for (let i = 0; i < 8; i++) {
@@ -3914,7 +3921,7 @@ function replayEventsFromTimeline() {
       label = toolName || 'tool';
       detail = evt.data?.isError ? 'error' : 'completed';
     } else if (evt.type === 'agent_spawn') {
-      label = 'Task';
+      label = 'Agent';
       detail = `[${evt.data?.subagentType || '?'}] ${evt.data?.name || ''}`;
     } else if (evt.type === 'agent_response') {
       label = 'Response';
