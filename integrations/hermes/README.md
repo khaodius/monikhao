@@ -10,7 +10,7 @@ Symlink (recommended) or copy this directory into Hermes's hooks folder:
 ln -s /path/to/monikhao/integrations/hermes ~/.hermes/hooks/monikhao
 ```
 
-Make sure the Monikhao worker is running (default port `37800`). If using a custom port, set `AGENT_MONITOR_PORT` before starting the Hermes gateway.
+The worker auto-spawns on the first Hermes event if it's not already running — no manual startup needed. Requires `node` in PATH.
 
 ## What gets tracked
 
@@ -28,6 +28,7 @@ Hermes uses snake_case tool names (`bash`, `read_file`, `edit_file`). The handle
 
 ## Configuration
 
-| Env Variable         | Default | Description              |
-|----------------------|---------|--------------------------|
-| `AGENT_MONITOR_PORT` | `37800` | Monikhao worker port     |
+| Env Variable         | Default       | Description                                      |
+|----------------------|---------------|--------------------------------------------------|
+| `AGENT_MONITOR_PORT` | `37800`       | Monikhao worker port                             |
+| `MONIKHAO_ROOT`      | *(auto)*      | Path to Monikhao install (resolved from symlink) |
