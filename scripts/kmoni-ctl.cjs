@@ -296,6 +296,22 @@ async function cmdInstall() {
     }
     console.log('  Copied ' + copied + ' files to Claude Code plugin cache.')
 
+    // Install dependencies in cache so the worker can require them
+    if (!existsSync(join(ccCache, 'node_modules', 'express', 'package.json'))) {
+      console.log('  Installing dependencies in plugin cache...')
+      try {
+        execFileSync('npm', ['install', '--production'], { cwd: ccCache, stdio: 'inherit', timeout: 120000 })
+      } catch (_) {
+        try {
+          execFileSync('bun', ['install', '--production'], { cwd: ccCache, stdio: 'inherit', timeout: 120000 })
+        } catch (_2) {
+          errors.push('Failed to install dependencies in Claude Code plugin cache')
+        }
+      }
+    } else {
+      console.log('  Dependencies already installed in plugin cache.')
+    }
+
     // Register in installed_plugins.json
     var ipFile = join(ccPlugins, 'installed_plugins.json')
     try {
