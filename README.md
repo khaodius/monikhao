@@ -1,10 +1,10 @@
 # Monikhao
 
-Real-time 3D dashboard that visualizes AI coding agent sessions using Three.js. Works with **Claude Code** and **OpenCode** simultaneously.
+Real-time 3D dashboard that visualizes AI coding agent sessions using Three.js. Works with **Claude Code**, **OpenCode**, and **[Hermes Agent](https://github.com/nousresearch/hermes-agent)** simultaneously.
 
 Agents appear as glowing orbs with orbital particles, subagent trees, heartbeat pulses, and proximity wires — all rendered in-browser with zero build step.
 
-![alpha](https://img.shields.io/badge/status-alpha%200.2.2-blueviolet)
+![alpha](https://img.shields.io/badge/status-alpha%200.2.5-blueviolet)
 
 ![Monikhao Dashboard](assets/monikhao.png)
 
@@ -43,6 +43,16 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.config\opencode\plugins\Mon
 
 Restart OpenCode. The worker auto-spawns on first session.
 
+### Hermes Agent
+
+```bash
+git clone https://github.com/khaodius/monikhao.git ~/Monikhao
+cd ~/Monikhao && npm install
+ln -s ~/Monikhao/integrations/hermes ~/.hermes/hooks/monikhao
+```
+
+The worker auto-spawns on the first Hermes event. Requires `node` in PATH.
+
 ### Manual (standalone)
 
 ```bash
@@ -64,7 +74,7 @@ Commands execute programmatically — no AI interpretation. In Claude Code they'
 ## Features
 
 ### 3D Visualization
-- **Multi-platform** — Claude Code and OpenCode sessions side-by-side on one dashboard
+- **Multi-platform** — Claude Code, OpenCode, and Hermes Agent sessions side-by-side on one dashboard
 - **3D agents** — Glowing orbs with orbital particles, rings, and heartbeat breathing
 - **Subagent trees** — Child agents orbit parents with energy flow connections
 - **3D parallax camera** — Background scrolls with camera rotation for depth
@@ -72,6 +82,7 @@ Commands execute programmatically — no AI interpretation. In Claude Code they'
 - **12 canvas backgrounds** — waves, plasma, fire, topology, fractal, snow, moire, and more
 
 ### Live Tracking
+
 - **Tool tracking** — Color-coded particles and thought bubbles per tool call
 - **Tool breakdown** — Per-tool call counts with error tracking in the agents panel
 - **Error detection** — Red orb flash on errors, error-highlighted feed events, per-agent error badges
@@ -111,6 +122,8 @@ Monikhao/
 │   ├── index.html                # Dashboard HTML
 │   ├── app.js                    # Three.js scene + WebSocket client
 │   └── style.css                 # Dashboard styles
+├── integrations/
+│   └── hermes/                   # Hermes Agent hook (HOOK.yaml + handler.py)
 ├── monikhao.js                   # OpenCode plugin entry point
 ├── config.json                   # Runtime configuration
 └── package.json                  # Dependencies (express, ws)
@@ -170,7 +183,7 @@ Edit `config.json` directly or use the dashboard Config tab (changes save automa
 
 - Node.js >= 18
 - npm (for installing express and ws)
-- Claude Code and/or OpenCode
+- Claude Code, OpenCode, and/or Hermes Agent
 
 ## License
 
