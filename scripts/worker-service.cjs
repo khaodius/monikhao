@@ -74,12 +74,13 @@ function pickAgentShape() {
 
 // ─── Source Detection ─────────────────────────────────────────────────────────
 // Determine which platform sent the event.  The OpenCode bootstrap sets
-// source:'opencode' explicitly; Claude Code hooks don't, so we fall back to
-// inspecting the session_id prefix ('oc-' = opencode, anything else = claudecode).
+// source:'opencode' explicitly; Hermes hook sets 'hermes'; Claude Code hooks
+// don't set source, so we fall back to inspecting the session_id prefix.
 function detectSource(event) {
   if (event.source) return event.source;
   const sid = event.session_id || '';
   if (sid.startsWith('oc-')) return 'opencode';
+  if (sid.startsWith('hermes')) return 'hermes';
   return 'claudecode';
 }
 

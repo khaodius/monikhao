@@ -1,0 +1,8 @@
+name: monikhao
+description: Forward Hermes Agent events to Monikhao 3D dashboard
+events:
+  - session:start
+  - session:end
+  - agent:start
+  - agent:step
+  - agent:end

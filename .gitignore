@@ -15,6 +15,10 @@ nul
 .monikhao/
 .agent-monitor/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Dev-only scripts (contain local paths)
 scripts/sync-plugins.sh
 scripts/*.tmp
