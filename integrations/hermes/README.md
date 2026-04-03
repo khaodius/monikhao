@@ -31,4 +31,5 @@ Hermes uses snake_case tool names (`bash`, `read_file`, `edit_file`). The handle
 | Env Variable         | Default       | Description                                      |
 |----------------------|---------------|--------------------------------------------------|
 | `AGENT_MONITOR_PORT` | `37800`       | Monikhao worker port                             |
+| `AGENT_MONITOR_HOST` | `0.0.0.0`    | Bind address (`0.0.0.0` = LAN accessible)        |
 | `MONIKHAO_ROOT`      | *(auto)*      | Path to Monikhao install (resolved from symlink) |

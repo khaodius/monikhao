@@ -25,7 +25,7 @@ const PRESETS_PATH = join(DATA_DIR, 'presets.json');
 const PID_FILE = join(DATA_DIR, 'worker.pid');
 
 const PORT = parseInt(process.env.AGENT_MONITOR_PORT) || 37800;
-const HOST = '127.0.0.1';
+const HOST = process.env.AGENT_MONITOR_HOST || '0.0.0.0';
 
 // ─── Load Config ───────────────────────────────────────────────────────────────
 let config = {};

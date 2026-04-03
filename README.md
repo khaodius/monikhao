@@ -160,7 +160,14 @@ Edit `config.json` directly or use the dashboard Config tab (changes save automa
 | `R` | Toggle auto-rotate |
 | `M` | Toggle audio |
 
-**Environment variables:** `AGENT_MONITOR_PORT` (default 37800), `MONIKHAO_ROOT`, `MONIKHAO_PATH`
+**Environment variables:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENT_MONITOR_PORT` | `37800` | Worker port |
+| `AGENT_MONITOR_HOST` | `0.0.0.0` | Bind address. Default exposes the dashboard on your local network (e.g. `http://192.168.x.x:37800`). Set to `127.0.0.1` to restrict access to localhost only. |
+| `MONIKHAO_ROOT` | *(auto)* | Path to Monikhao install |
+| `MONIKHAO_PATH` | *(auto)* | Alias for `MONIKHAO_ROOT` |
 
 ## API
 

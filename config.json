@@ -1,6 +1,6 @@
 {
   "port": 37800,
-  "host": "127.0.0.1",
+  "host": "0.0.0.0",
   "autoOpenBrowser": false,
   "theme": {
     "background": "#0a0a1a",
