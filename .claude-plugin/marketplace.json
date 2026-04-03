@@ -1,0 +1,23 @@
+{
+  "name": "monikhao-marketplace",
+  "owner": {
+    "name": "khaos"
+  },
+  "metadata": {
+    "description": "Official Monikhao plugin marketplace"
+  },
+  "plugins": [
+    {
+      "name": "monikhao",
+      "source": "./",
+      "description": "Real-time 3D dashboard visualizing AI coding agent sessions with Three.js",
+      "version": "1.0.0",
+      "author": {
+        "name": "khaos"
+      },
+      "homepage": "https://github.com/khaodius/monikhao",
+      "license": "MIT",
+      "keywords": ["monitoring", "3d", "visualization", "agents", "dashboard", "claude", "threejs"]
+    }
+  ]
+}
